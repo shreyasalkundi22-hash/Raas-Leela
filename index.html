@@ -74,9 +74,10 @@
         </a>
 
         <!-- Mobile Menu Icon -->
-        <button type="button" class="mobile-toggle-btn" id="mobileMenuToggle" aria-label="Toggle navigation">
-          <span></span>
-          <span></span>
+        <button type="button" class="mobile-toggle-btn" id="mobileMenuToggle" aria-label="Toggle navigation" title="Menu">
+          <span class="hamburger-bar"></span>
+          <span class="hamburger-bar"></span>
+          <span class="hamburger-bar"></span>
         </button>
       </div>
 
@@ -1038,6 +1039,21 @@
     </section>
 
   </main>
+
+  <!-- ==========================================================================
+       MOBILE STICKY BOOKING CTA (Public Viewport)
+       ========================================================================== -->
+  <aside class="mobile-sticky-cta-bar" id="mobileStickyCta" aria-label="Quick Pass Reservation">
+    <div class="sticky-cta-inner">
+      <div class="sticky-cta-info">
+        <span class="sticky-cta-label">PASSES FROM</span>
+        <strong class="sticky-cta-price">&#8377;299</strong>
+      </div>
+      <button type="button" class="btn btn-gold-shimmer sticky-cta-btn trigger-checkout-btn" data-category="stag" data-price="299" data-admit="1" id="stickyBookBtn">
+        <span>BOOK NOW</span>
+      </button>
+    </div>
+  </aside>
 
   <!-- ==========================================================================
        FOOTER

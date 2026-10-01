@@ -54,6 +54,9 @@ html {
   scroll-behavior: smooth;
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+  max-width: 100vw;
+  width: 100%;
 }
 
 body {
@@ -64,6 +67,8 @@ body {
   overflow-x: hidden;
   position: relative;
   min-height: 100vh;
+  max-width: 100vw;
+  width: 100%;
 }
 
 /* Background Atmospheric Canvas & Lighting Layers */
@@ -2241,52 +2246,7 @@ a {
 /* ==========================================================================
    RESPONSIVENESS
    ========================================================================== */
-@media (max-width: 900px) {
-  /* Hero Indian Mandala & Dandiya Responsiveness */
-  .mandala-artwork-wrapper { width: min(94vw, 760px); height: min(94vw, 760px); top: 36%; opacity: 0.40; }
-  .royal-dandiya-stage { width: 340px; height: 340px; top: 36%; opacity: 0.38; }
-  .mandala-glow-halo { width: 440px; height: 440px; top: 36%; }
-  .mandala-core-warmth { width: 250px; height: 250px; top: 36%; }
-  .palace-flank-diya { opacity: 0.4; }
-  .nav-center-info { display: none; }
-  .nav-portal-btn { display: none; }
-  .mobile-toggle-btn { display: flex; }
-
-  .dj-grid-layout { grid-template-columns: 1fr; }
-  .passes-trio-display { grid-template-columns: 1fr; max-width: 440px; margin: 0 auto 30px; }
-  .featured-invitation-badge { transform: none; }
-  .venue-luxury-monolith { grid-template-columns: 1fr; }
-  .experience-trinity-grid { grid-template-columns: 1fr; max-width: 440px; margin: 30px auto 0; }
-  .coordinators-duo-grid { grid-template-columns: 1fr; }
-  .scanner-split-interface { grid-template-columns: 1fr; }
-  .admin-metrics-row { grid-template-columns: 1fr 1fr; }
-}
-
-@media (max-width: 576px) {
-  /* Hero Indian Mandala Mobile Adaptation */
-  .mandala-artwork-wrapper { width: 420px; height: 420px; top: 34%; opacity: 0.36; }
-  .royal-dandiya-stage { width: 260px; height: 260px; top: 34%; opacity: 0.32; }
-  .mandala-glow-halo { width: 320px; height: 320px; top: 34%; }
-  .mandala-core-warmth { width: 190px; height: 190px; top: 34%; }
-  .palace-flank-diya { display: none; }
-  .floating-navbar { padding: 0 10px; top: 10px; }
-  .nav-inner-pill { padding: 8px 16px; }
-  .main-editorial-title { font-size: 3.6rem; }
-  .hero-sanctuary { padding: 120px 0 60px; }
-  .event-coordinates-card { padding: 10px 16px; gap: 12px; }
-  .coord-divider { display: none; }
-  .luxury-countdown-box { padding: 10px 16px; gap: 8px; }
-  .cd-digit { font-size: 1.4rem; }
-  .cd-cell { min-width: 40px; }
-  .form-row-2 { grid-template-columns: 1fr; gap: 0; }
-  .e-ticket-content-body { grid-template-columns: 1fr; }
-  .admin-metrics-row { grid-template-columns: 1fr; }
-  .modal-dialog-box { padding: 24px 16px; max-height: 94vh; border-radius: 14px; }
-  .dialog-title { font-size: 1.45rem; }
-  .booking-confirm-card { padding: 14px 14px; margin-bottom: 14px; }
-  .confirm-pass-title { font-size: 1.1rem; }
-  .confirm-total-amount { font-size: 1.35rem; }
-}
+/* See complete Responsive Architecture section at bottom of file */
 
 /* Print Rules */
 @media print {
@@ -3557,4 +3517,1364 @@ a {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ==========================================================================
+   COMPLETE RESPONSIVE DESIGN ARCHITECTURE & MULTI-DEVICE SYSTEM
+   Deliberately crafted for:
+   - Mobile Phones: 360px, 375px, 390px, 412px, 430px
+   - Tablets: 768px, 820px, 1024px
+   - Desktops & Laptops: 1280px, 1440px, 1920px
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. GLOBAL RESPONSIVE FLUIDITY & BASE RESETS
+   -------------------------------------------------------------------------- */
+html, body {
+  overflow-x: hidden !important;
+  width: 100%;
+  max-width: 100%;
+  position: relative;
+  -webkit-text-size-adjust: 100%;
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+img, video, canvas, svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.particles-layer, .sky-atmosphere-glow, .cinema-vignette {
+  max-width: 100%;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+   2. MOBILE STICKY BOOKING CTA BAR
+   -------------------------------------------------------------------------- */
+.mobile-sticky-cta-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 95;
+  background: rgba(18, 6, 8, 0.95);
+  border-top: 1px solid rgba(212, 175, 55, 0.35);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 10px 18px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 25px rgba(0, 0, 0, 0.8), 0 0 15px rgba(74, 13, 22, 0.3);
+  transform: translateY(120%);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  display: none;
+}
+
+@media (max-width: 991px) {
+  .mobile-sticky-cta-bar {
+    display: block;
+  }
+}
+
+.mobile-sticky-cta-bar.is-visible {
+  transform: translateY(0);
+}
+
+.sticky-cta-inner {
+  max-width: 520px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.sticky-cta-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.sticky-cta-label {
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: var(--gold-brass);
+}
+
+.sticky-cta-price {
+  font-family: var(--font-serif-display);
+  font-size: 1.3rem;
+  font-weight: 900;
+  color: var(--gold-champagne);
+  line-height: 1;
+}
+
+.sticky-cta-btn {
+  padding: 10px 22px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  border-radius: 20px;
+  min-height: 44px;
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.35);
+}
+
+/* --------------------------------------------------------------------------
+   3. HAMBURGER BUTTON & MOBILE DRAWER STYLING
+   -------------------------------------------------------------------------- */
+.mobile-toggle-btn {
+  background: rgba(42, 8, 13, 0.65);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 8px;
+  width: 42px;
+  height: 42px;
+  min-width: 42px;
+  min-height: 42px;
+  padding: 8px;
+  cursor: pointer;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+}
+
+.mobile-toggle-btn:hover, .mobile-toggle-btn:focus-visible {
+  background: rgba(74, 13, 22, 0.9);
+  border-color: var(--gold-champagne);
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.35);
+}
+
+.hamburger-bar {
+  display: block;
+  width: 20px;
+  height: 2px;
+  background: var(--gold-champagne);
+  border-radius: 2px;
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.nav-slide-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  z-index: 200;
+  display: none;
+}
+
+.nav-slide-drawer.active {
+  display: block;
+}
+
+.drawer-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(8, 2, 4, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.drawer-content-box {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(88vw, 380px);
+  height: 100%;
+  height: 100dvh;
+  background: #18060a;
+  border-left: 1.5px solid var(--gold-antique);
+  padding: 28px 22px;
+  padding-bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  box-shadow: -15px 0 40px rgba(0, 0, 0, 0.9);
+}
+
+.drawer-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+.drawer-crest {
+  font-family: var(--font-serif-display);
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--gold-champagne);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawer-close {
+  background: transparent;
+  border: none;
+  font-size: 2.2rem;
+  color: var(--gold-champagne);
+  cursor: pointer;
+  line-height: 1;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.drawer-links {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.d-link {
+  font-family: var(--font-serif-display);
+  font-size: 1.15rem;
+  color: var(--gold-ivory);
+  padding: 10px 12px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  display: block;
+}
+
+.d-link:hover, .d-link:active {
+  background: rgba(74, 13, 22, 0.5);
+  color: var(--gold-champagne);
+  transform: translateX(4px);
+}
+
+.drawer-portal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 24px;
+  border-top: 1px solid rgba(212, 175, 55, 0.15);
+  padding-top: 18px;
+}
+
+.d-portal-btn {
+  background: rgba(42, 8, 13, 0.7);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: var(--gold-champagne);
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 46px;
+}
+
+.drawer-bottom {
+  margin-top: auto;
+  border-top: 1px solid rgba(212, 175, 55, 0.15);
+  padding-top: 18px;
+}
+
+.drawer-bottom p {
+  font-size: 0.8rem;
+  color: #c4a496;
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+.drawer-bottom .btn {
+  min-height: 48px;
+}
+
+/* --------------------------------------------------------------------------
+   4. TABLETS & MEDIUM SCREENS (769px to 1024px)
+   -------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  .container {
+    max-width: 960px;
+    padding: 0 24px;
+  }
+  
+  .experience-trinity-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+  
+  .passes-trio-display {
+    gap: 20px;
+  }
+  
+  .venue-luxury-monolith {
+    grid-template-columns: 1.1fr 0.9fr;
+  }
+  
+  .venue-address-column {
+    padding: 34px 28px;
+  }
+}
+
+@media (max-width: 991px) {
+  /* Navigation */
+  .floating-navbar {
+    top: 12px;
+    padding: 0 16px;
+  }
+  
+  .nav-inner-pill {
+    padding: 8px 18px;
+    border-radius: 30px;
+  }
+  
+  .nav-center-info {
+    display: none;
+  }
+  
+  .nav-portal-btn {
+    display: none; /* Moved to mobile slide drawer */
+  }
+  
+  .mobile-toggle-btn {
+    display: flex;
+  }
+
+  /* Hero Section */
+  .hero-sanctuary {
+    padding: 110px 0 55px;
+    min-height: auto;
+  }
+
+  .mandala-stage-container {
+    pointer-events: none;
+  }
+
+  .mandala-artwork-wrapper {
+    width: min(85vw, 600px);
+    height: min(85vw, 600px);
+    top: 36%;
+    opacity: 0.32;
+  }
+
+  .royal-dandiya-stage {
+    width: min(65vw, 320px);
+    height: min(65vw, 320px);
+    top: 36%;
+    opacity: 0.30;
+  }
+
+  .mandala-glow-halo {
+    width: min(75vw, 400px);
+    height: min(75vw, 400px);
+    top: 36%;
+  }
+
+  .mandala-core-warmth {
+    width: min(50vw, 220px);
+    height: min(50vw, 220px);
+    top: 36%;
+  }
+
+  .palace-flank-diya {
+    opacity: 0.25;
+  }
+
+  /* Headliner DJ Aura */
+  .dj-grid-layout {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+
+  .dj-festival-sanctuary {
+    padding: 36px 28px;
+  }
+
+  .artwork-monolith-frame {
+    height: 340px;
+    max-width: 440px;
+    margin: 0 auto;
+  }
+
+  /* Passes Trio */
+  .passes-trio-display {
+    grid-template-columns: 1fr;
+    max-width: 480px;
+    margin: 0 auto 36px;
+    gap: 22px;
+  }
+
+  .featured-invitation-badge {
+    transform: none !important;
+  }
+
+  .featured-invitation-badge:hover {
+    transform: translateY(-4px) !important;
+  }
+
+  /* Venue Monolith */
+  .venue-luxury-monolith {
+    grid-template-columns: 1fr;
+  }
+
+  .venue-schematic-column {
+    border-left: none;
+    border-top: 1px solid rgba(212, 175, 55, 0.2);
+    padding: 24px 20px;
+  }
+
+  /* Admin Dashboard */
+  .admin-metrics-row {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .scanner-split-interface {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   5. MOBILE PHONES & SMALL SCREENS (<= 768px)
+   -------------------------------------------------------------------------- */
+@media (max-width: 768px) {
+  /* Global section spacing */
+  .section {
+    padding: 65px 0;
+  }
+
+  .container {
+    padding: 0 18px;
+    max-width: 100%;
+  }
+
+  .editorial-header {
+    margin-bottom: 34px;
+  }
+
+  .editorial-heading {
+    font-size: clamp(1.8rem, 6vw, 2.5rem);
+    line-height: 1.2;
+  }
+
+  .editorial-body-prose {
+    font-size: 0.95rem;
+    line-height: 1.65;
+    width: min(94%, 560px);
+  }
+
+  /* Navigation Bar - Clean simplified mobile header */
+  .floating-navbar {
+    top: 8px !important;
+    padding: 0 10px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .nav-inner-pill {
+    padding: 6px 14px !important;
+    border-radius: 24px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+  }
+
+  .nav-brand {
+    gap: 6px !important;
+  }
+
+  .brand-sub {
+    font-size: 0.54rem !important;
+    letter-spacing: 0.16em !important;
+  }
+
+  .brand-main {
+    font-size: 1.05rem !important;
+  }
+
+  .nav-center-info {
+    display: none !important;
+  }
+
+  .nav-portal-btn {
+    display: none !important;
+  }
+
+  .btn-nav-cta {
+    display: none !important; /* Simplified header: main CTA is in hero, mobile drawer, and bottom sticky CTA */
+  }
+
+  .mobile-toggle-btn {
+    display: flex !important;
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+    min-height: 38px !important;
+    padding: 6px !important;
+  }
+
+  /* Recomposed Mobile Hero */
+  .hero-sanctuary {
+    padding: 85px 0 40px !important;
+    overflow: hidden !important;
+  }
+
+  .hero-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 16px !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+  }
+
+  .hero-kicker-row {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    gap: 0 !important;
+    margin-bottom: 10px !important;
+    width: 100% !important;
+    text-align: center !important;
+  }
+
+  .kicker-line {
+    display: none !important;
+  }
+
+  .kicker-label {
+    font-size: 0.58rem !important;
+    letter-spacing: 0.12em !important;
+    white-space: normal !important;
+    text-align: center !important;
+    width: 100% !important;
+    display: block !important;
+  }
+
+  .main-editorial-title {
+    font-size: clamp(2.5rem, 13vw, 4.2rem) !important;
+    line-height: 0.88 !important;
+    letter-spacing: 0.04em !important;
+    margin-bottom: 6px !important;
+    width: 100% !important;
+    text-align: center !important;
+  }
+
+  .word-box {
+    display: block !important;
+    width: 100% !important;
+    text-align: center !important;
+  }
+
+  .subtitle-script-ribbon {
+    margin-bottom: 18px !important;
+    gap: 10px !important;
+  }
+
+  .script-phrase {
+    font-size: 1.1rem !important;
+  }
+
+  /* Decorative Artwork behind hero */
+  .mandala-stage-container {
+    overflow: hidden !important;
+    max-width: 100vw !important;
+  }
+
+  .mandala-artwork-wrapper {
+    width: min(80vw, 300px) !important;
+    height: min(80vw, 300px) !important;
+    top: 30% !important;
+    opacity: 0.16 !important;
+  }
+
+  .royal-dandiya-stage {
+    width: min(60vw, 220px) !important;
+    height: min(60vw, 220px) !important;
+    top: 30% !important;
+    opacity: 0.15 !important;
+  }
+
+  .mandala-glow-halo {
+    width: min(70vw, 260px) !important;
+    height: min(70vw, 260px) !important;
+    top: 30% !important;
+  }
+
+  .mandala-core-warmth {
+    width: min(45vw, 150px) !important;
+    height: min(45vw, 150px) !important;
+    top: 30% !important;
+  }
+
+  .palace-flank-diya {
+    display: none !important;
+  }
+
+  /* Event Coordinates Card */
+  .event-coordinates-card {
+    padding: 12px 14px !important;
+    border-radius: 12px !important;
+    margin: 0 auto 18px !important;
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    text-align: center !important;
+    width: 100% !important;
+    max-width: 320px !important;
+    box-sizing: border-box !important;
+  }
+
+  .coord-divider {
+    display: none !important;
+  }
+
+  .coord-tag {
+    font-size: 0.55rem !important;
+    letter-spacing: 0.08em !important;
+  }
+
+  .coord-value {
+    font-size: 0.8rem !important;
+  }
+
+  /* Sponsors Strip */
+  .hero-sponsors-section {
+    margin: 10px auto 16px !important;
+    width: 100% !important;
+    max-width: 320px !important;
+  }
+
+  .sponsors-strip-header {
+    margin-bottom: 8px !important;
+    gap: 8px !important;
+  }
+
+  .sp-line {
+    max-width: 30px !important;
+  }
+
+  .sp-crown-tag {
+    font-size: 0.58rem !important;
+    letter-spacing: 0.12em !important;
+    white-space: nowrap !important;
+  }
+
+  .sponsors-logos-grid {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    justify-content: center !important;
+  }
+
+  .sponsor-card-capsule {
+    padding: 4px 8px !important;
+    border-radius: 6px !important;
+    gap: 6px !important;
+    max-width: calc(50% - 4px) !important;
+    flex: 0 1 calc(50% - 4px) !important;
+    box-sizing: border-box !important;
+  }
+
+  .sp-img-box {
+    width: 26px !important;
+    height: 18px !important;
+    flex-shrink: 0 !important;
+  }
+
+  .sp-label {
+    font-size: 0.58rem !important;
+    letter-spacing: 0.04em !important;
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* Countdown Clocks */
+  .luxury-countdown-box {
+    padding: 8px 10px !important;
+    border-radius: 10px !important;
+    max-width: 300px !important;
+    margin: 0 auto 20px !important;
+    gap: 4px !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    display: flex !important;
+    justify-content: space-between !important;
+  }
+
+  .cd-cell {
+    flex: 1 !important;
+    min-width: 0 !important;
+  }
+
+  .cd-digit {
+    font-size: clamp(1.15rem, 5vw, 1.4rem) !important;
+  }
+
+  .cd-caption {
+    font-size: 0.48rem !important;
+    letter-spacing: 0.06em !important;
+  }
+
+  .cd-separator {
+    font-size: 1rem !important;
+    margin-top: -6px !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Hero Action Cluster */
+  .hero-actions-cluster {
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+    max-width: 320px !important;
+    margin: 0 auto 26px !important;
+  }
+
+  .btn-hero-primary, .btn-hero-secondary {
+    width: 100%;
+    min-height: 50px;
+    padding: 14px 20px;
+    font-size: 0.88rem;
+  }
+
+  /* Experience Cards: 1 column */
+  .experience-trinity-grid {
+    grid-template-columns: 1fr;
+    max-width: 440px;
+    margin: 30px auto 0;
+    gap: 18px;
+  }
+
+  .trinity-card {
+    padding: 26px 20px;
+    border-radius: 12px;
+  }
+
+  /* Headliner DJ Aura: Perfect Mobile Stacking Order */
+  .dj-festival-sanctuary {
+    padding: 24px 18px;
+    border-radius: 16px;
+  }
+
+  .dj-grid-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .dj-bio-column {
+    display: contents;
+  }
+
+  .dj-headliner-tag {
+    order: 1;
+    margin-bottom: 4px;
+  }
+
+  .dj-massive-name {
+    order: 2;
+    font-size: clamp(2.8rem, 12vw, 4rem);
+    margin-bottom: 6px;
+  }
+
+  .dj-event-stamp {
+    order: 3;
+    font-size: 0.92rem;
+    margin-bottom: 14px;
+  }
+
+  .dj-artwork-column {
+    order: 4;
+    width: 100%;
+    margin-bottom: 8px;
+  }
+
+  .dj-editorial-statement {
+    order: 5;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    margin-bottom: 16px;
+  }
+
+  .frequency-wave-visualizer {
+    order: 6;
+    margin-bottom: 20px;
+    justify-content: center;
+  }
+
+  .dj-cta-row {
+    order: 7;
+    width: 100%;
+  }
+
+  .dj-cta-row .btn {
+    width: 100%;
+    min-height: 48px;
+    font-size: 0.85rem;
+  }
+
+  .artwork-monolith-frame {
+    width: 100%;
+    max-width: 380px;
+    height: auto;
+    aspect-ratio: 4/5;
+    max-height: 380px;
+    margin: 0 auto;
+    border-radius: 12px;
+  }
+
+  .monolith-poster-img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .dj-fullscreen-banner-btn {
+    top: 10px;
+    right: 10px;
+    padding: 6px 12px;
+    font-size: 0.7rem;
+    min-height: 36px;
+  }
+
+  /* Passes Sanctuary */
+  .passes-trio-display {
+    max-width: 420px;
+    gap: 18px;
+  }
+
+  .pass-invitation-badge {
+    padding: 26px 20px;
+    border-radius: 14px;
+  }
+
+  .badge-tier-title {
+    font-size: 1.45rem;
+  }
+
+  .price-figures {
+    font-size: 2.3rem;
+  }
+
+  .trigger-checkout-btn {
+    min-height: 48px;
+    font-size: 0.88rem;
+  }
+
+  /* WhatsApp Concierge Strip */
+  .concierge-booking-strip {
+    padding: 20px 16px;
+    border-radius: 12px;
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+
+  .strip-info {
+    flex-direction: column;
+    text-align: center;
+    gap: 10px;
+  }
+
+  .strip-buttons {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .strip-buttons .btn {
+    width: 100%;
+    min-height: 46px;
+    font-size: 0.84rem;
+  }
+
+  /* Venue Section */
+  .venue-address-column {
+    padding: 26px 18px;
+  }
+
+  .venue-title {
+    font-size: 1.8rem;
+  }
+
+  .venue-transit-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .transit-item {
+    padding: 10px 12px;
+  }
+
+  .venue-address-column .btn {
+    min-height: 48px;
+    font-size: 0.85rem;
+  }
+
+  /* Coordinators / Contact */
+  .coordinators-duo-grid {
+    grid-template-columns: 1fr;
+    max-width: 420px;
+    gap: 18px;
+  }
+
+  .concierge-card {
+    padding: 24px 18px;
+    border-radius: 12px;
+  }
+
+  .concierge-buttons {
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .concierge-buttons .btn {
+    width: 100%;
+    min-height: 48px;
+    font-size: 0.85rem;
+  }
+
+  /* Footer */
+  .cinematic-footer {
+    padding: 34px 0 70px;
+  }
+
+  .footer-layout {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+
+  .portal-links-row {
+    justify-content: center;
+  }
+
+  /* --------------------------------------------------------------------------
+     MODALS RESPONSIVE OVERHAUL (NATIVE APP SHEET BEHAVIOR ON MOBILE)
+     -------------------------------------------------------------------------- */
+  .modal-scrim {
+    padding: 0;
+    align-items: flex-start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .modal-dialog-box {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100dvh;
+    min-height: 100vh;
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+    padding: 56px 18px 40px !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .dialog-close-btn {
+    top: 12px;
+    right: 14px;
+    width: 44px;
+    height: 44px;
+    font-size: 2.2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 20;
+  }
+
+  .dialog-title {
+    font-size: 1.5rem;
+  }
+
+  /* Booking Form Elements */
+  .form-row-2 {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .dark-input, .dark-select {
+    height: 48px;
+    min-height: 48px;
+    font-size: 16px !important; /* Critical: avoids iOS Safari automatic zoom */
+    border-radius: 8px;
+    padding: 12px 14px;
+  }
+
+  .stepper-wrap {
+    height: 48px;
+  }
+
+  .step-btn {
+    width: 48px;
+    height: 48px;
+    font-size: 1.35rem;
+  }
+
+  .step-num {
+    height: 48px;
+    font-size: 1.15rem;
+  }
+
+  #proceedToPayBtn {
+    min-height: 52px;
+    font-size: 0.95rem;
+    margin-top: 10px;
+  }
+
+  /* Booking Confirmation Screen */
+  .booking-confirm-card {
+    padding: 16px;
+    border-radius: 10px;
+    margin-bottom: 16px;
+  }
+
+  .confirm-pass-title {
+    font-size: 1.15rem;
+  }
+
+  .confirm-total-amount {
+    font-size: 1.45rem;
+  }
+
+  #proceedToPaymentBtn {
+    min-height: 52px;
+    font-size: 1rem;
+    letter-spacing: 0.08em;
+  }
+
+  #backToFormBtn {
+    min-height: 44px;
+    font-size: 0.82rem;
+  }
+
+  /* Digital Ticket Monolith */
+  .royal-ticket-card-monolith {
+    padding: 24px 14px;
+    border-radius: 12px;
+    margin-bottom: 18px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .ticket-brand-title {
+    font-size: clamp(1.6rem, 6.5vw, 2.1rem);
+  }
+
+  .t-tier-badge {
+    font-size: 0.86rem;
+    padding: 4px 16px;
+  }
+
+  .t-tier-price {
+    font-size: clamp(1.8rem, 7.5vw, 2.3rem);
+  }
+
+  .ticket-qr-center-box {
+    margin: 14px 0;
+  }
+
+  .ticket-qr-frame {
+    padding: 8px;
+    border-radius: 8px;
+  }
+
+  .ticket-qr-frame canvas {
+    width: min(65vw, 200px) !important;
+    height: min(65vw, 200px) !important;
+    max-width: 100%;
+  }
+
+  .ticket-attendee-meta-block {
+    padding: 12px 14px;
+  }
+
+  .t-meta-row {
+    font-size: 0.8rem;
+  }
+
+  .ticket-action-buttons .btn {
+    min-height: 48px;
+    font-size: 0.84rem;
+  }
+
+  /* Staff Gate Check-In & Scanner */
+  .portal-dialog-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .portal-dialog-header > div:last-child {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .scanner-camera-box {
+    height: min(65vw, 260px);
+    border-radius: 8px;
+  }
+
+  #startCameraBtn, #stopCameraBtn {
+    min-height: 48px;
+    width: 100%;
+  }
+
+  .search-input-group {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .search-input-group input {
+    height: 48px;
+    font-size: 16px;
+  }
+
+  .search-input-group button {
+    height: 48px;
+    width: 100%;
+  }
+
+  .btn-admit-action {
+    min-height: 52px;
+    font-size: 1rem;
+    padding: 14px;
+  }
+
+  /* Admin Dashboard Mobile Transformation */
+  .admin-metrics-row {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px;
+  }
+
+  .metric-card {
+    padding: 12px 10px;
+  }
+
+  .m-caption {
+    font-size: 0.6rem;
+  }
+
+  .m-stat {
+    font-size: 1.5rem;
+  }
+
+  .m-note {
+    font-size: 0.65rem;
+  }
+
+  .admin-table-filters {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .search-box {
+    max-width: 100%;
+    width: 100%;
+    height: 46px;
+    font-size: 16px;
+  }
+
+  .filter-badge-group {
+    width: 100%;
+    display: flex;
+    gap: 6px;
+  }
+
+  .filter-pill {
+    flex: 1;
+    text-align: center;
+    padding: 8px 6px;
+    font-size: 0.72rem;
+  }
+
+  .sales-breakdown-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Convert Admin Roster Table into Individual Booking Cards on Mobile */
+  .roster-table {
+    display: block;
+    width: 100%;
+  }
+
+  .roster-table thead {
+    display: none;
+  }
+
+  .roster-table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .roster-table tr {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: rgba(30, 7, 12, 0.9);
+    border: 1px solid rgba(212, 175, 55, 0.28);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+  }
+
+  .roster-table td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 0.84rem;
+    text-align: right;
+  }
+
+  .roster-table td:last-child {
+    border-bottom: none;
+    padding-top: 8px;
+    justify-content: flex-end;
+  }
+
+  .roster-table td::before {
+    content: attr(data-label);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold-champagne);
+    text-align: left;
+    margin-right: 12px;
+  }
+
+  /* Poster Lightbox */
+  .poster-modal-viewport {
+    width: 92vw;
+    max-width: 440px;
+    max-height: 90vh;
+  }
+
+  .poster-fullscreen-view {
+    width: 100%;
+    height: auto;
+    max-height: 84vh;
+    object-fit: contain;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   6. EXTRA-NARROW MOBILE PHONES (<= 390px, e.g. 360px, 375px)
+   -------------------------------------------------------------------------- */
+@media (max-width: 390px) {
+  .container {
+    padding: 0 14px;
+  }
+
+  .floating-navbar {
+    padding: 0 8px;
+  }
+
+  .nav-inner-pill {
+    padding: 6px 12px;
+  }
+
+  .brand-sub {
+    font-size: 0.52rem;
+    letter-spacing: 0.16em;
+  }
+
+  .brand-main {
+    font-size: 1.05rem;
+  }
+
+  .btn-nav-cta {
+    display: none !important;
+  }
+
+  .main-editorial-title {
+    font-size: clamp(2.5rem, 13vw, 3.2rem);
+    letter-spacing: 0.04em;
+  }
+
+  .event-coordinates-card {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .luxury-countdown-box {
+    padding: 8px 10px;
+    gap: 4px;
+    max-width: 300px;
+  }
+
+  .cd-digit {
+    font-size: 1.25rem;
+  }
+
+  .cd-caption {
+    font-size: 0.5rem;
+  }
+
+  .cd-separator {
+    font-size: 1rem;
+  }
+
+  .admin-metrics-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .modal-dialog-box {
+    padding: 50px 14px 34px !important;
+  }
+
+  .royal-ticket-card-monolith {
+    padding: 20px 12px;
+  }
+
+  .t-meta-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   7. PREFERS-REDUCED-MOTION (ACCESSIBILITY & BATTERY OPTIMIZATION)
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .laser-beam-animation, .pulse-ring-slow, .live-dot, .mouse-wheel {
+    animation: none !important;
+  }
 }

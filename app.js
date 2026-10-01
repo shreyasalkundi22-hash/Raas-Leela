@@ -1694,14 +1694,14 @@
       var tr = document.createElement('tr');
       var isRedeemed = t.status === 'REDEEMED' || t.status === 'CHECKED_IN';
       tr.innerHTML = [
-        '<td class="code-font gold-text">' + t.id + '</td>',
-        '<td><strong>' + t.name + '</strong><br><small style="color:rgba(255,255,255,0.5);">' + t.phone + '</small></td>',
-        '<td>' + t.passType + '</td>',
-        '<td>' + t.admitCount + ' Pax</td>',
-        '<td>\u20B9' + t.amount + '</td>',
-        '<td><span class="' + (isRedeemed ? 'badge-redeemed' : 'badge-paid') + '">' + (isRedeemed ? 'ADMITTED' : 'ACTIVE') + '</span></td>',
-        '<td>' + (t.checkedInAt || '\u2014') + '</td>',
-        '<td>' + (!isRedeemed ? '<button type="button" class="btn btn-admit-action btn-sm" data-id="' + t.id + '" style="padding:4px 10px; font-size:0.75rem;">Admit</button>' : '<span style="font-size:0.75rem; color:#a855f7;">Redeemed</span>') + '</td>'
+        '<td class="code-font gold-text" data-label="Ticket ID">' + t.id + '</td>',
+        '<td data-label="Attendee"><strong>' + t.name + '</strong><br><small style="color:rgba(255,255,255,0.6);">' + t.phone + '</small></td>',
+        '<td data-label="Pass Type">' + t.passType + '</td>',
+        '<td data-label="Guests">' + t.admitCount + ' Pax</td>',
+        '<td data-label="Paid" class="gold-text">\u20B9' + t.amount + '</td>',
+        '<td data-label="Status"><span class="' + (isRedeemed ? 'badge-redeemed' : 'badge-paid') + '">' + (isRedeemed ? 'ADMITTED' : 'ACTIVE') + '</span></td>',
+        '<td data-label="Checked In">' + (t.checkedInAt || '\u2014') + '</td>',
+        '<td data-label="Action">' + (!isRedeemed ? '<button type="button" class="btn btn-admit-action btn-sm" data-id="' + t.id + '" style="padding:6px 14px; font-size:0.75rem;">Admit</button>' : '<span style="font-size:0.75rem; color:#a855f7;">Redeemed</span>') + '</td>'
       ].join('');
 
       var btn = tr.querySelector('button[data-id]');
@@ -1839,11 +1839,38 @@
     handleRoute();
   }
 
+  /* ==========================================================================
+     12. MOBILE STICKY BOTTOM BOOKING CTA CONTROLLER
+     ========================================================================== */
+  var mobileStickyCta = document.getElementById('mobileStickyCta');
+  function updateStickyCtaVisibility() {
+    if (!mobileStickyCta) return;
+    var heroEl = document.getElementById('hero');
+    var threshold = heroEl ? Math.max(heroEl.offsetHeight * 0.65, 320) : 320;
+    var isModalActive = !!document.querySelector('.modal-scrim.active, .nav-slide-drawer.active');
+    
+    if (window.scrollY > threshold && !isModalActive && window.innerWidth <= 900) {
+      mobileStickyCta.classList.add('is-visible');
+    } else {
+      mobileStickyCta.classList.remove('is-visible');
+    }
+  }
+
+  window.addEventListener('scroll', updateStickyCtaVisibility, { passive: true });
+  window.addEventListener('resize', updateStickyCtaVisibility);
+
+  // Hook into modal state changes
+  var observer = new MutationObserver(updateStickyCtaVisibility);
+  document.querySelectorAll('.modal-scrim, .nav-slide-drawer').forEach(function (m) {
+    observer.observe(m, { attributes: true, attributeFilter: ['class', 'style'] });
+  });
+
   window.RaasLeelaEngine = {
     EventDB: EventDB,
     sha256: sha256,
     openStaffPortal: openStaffPortal,
-    openAdminPortal: openAdminPortal
+    openAdminPortal: openAdminPortal,
+    updateStickyCtaVisibility: updateStickyCtaVisibility
   };
 
 })();
