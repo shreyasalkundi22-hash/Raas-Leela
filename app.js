@@ -619,7 +619,7 @@
       return order;
     },
 
-    mintTicketsForPaidOrder: function (orderRef, txnId) {
+    mintTicketsForPaidOrder: function (orderRef, txnId, serverMintedTickets) {
       var orders = this.getAllOrders();
       var order = orders.find(function (o) { return o.orderRef === orderRef; });
       if (!order) return null;
@@ -631,35 +631,67 @@
       var tickets = this.getAllTickets();
       var minted = [];
 
-      for (var i = 0; i < (order.qty || 1); i++) {
-        var ticketId = generateUniqueTicketId(tickets);
-        var token = generateSecureToken();
-        var admitCountPerTicket = order.tier === 'stag' ? 1 : order.tier === 'couple' ? 2 : 5;
-        var tPrice = order.tier === 'stag' ? 299 : order.tier === 'couple' ? 499 : 1199;
+      if (Array.isArray(serverMintedTickets) && serverMintedTickets.length > 0) {
+        // Use verified server-minted tickets with secure tokens & IDs
+        serverMintedTickets.forEach(function (st, i) {
+          var t = {
+            id: st.id,
+            verifyToken: st.verifyToken,
+            verifyUrl: st.verifyUrl || ('/verify/' + st.verifyToken),
+            name: st.name || order.name,
+            phone: st.phone || order.phone,
+            email: st.email || order.email || '',
+            passType: st.passType || order.passType,
+            tier: st.tier || order.tier,
+            admitCount: st.admitCount || (order.tier === 'stag' ? 1 : order.tier === 'couple' ? 2 : 5),
+            amount: st.amount || (order.tier === 'stag' ? 299 : order.tier === 'couple' ? 499 : 1199),
+            paymentStatus: 'PAID',
+            paymentTxnId: order.paymentTxnId,
+            paymentMethod: order.paymentMethod,
+            status: 'ACTIVE',
+            orderRef: order.orderRef,
+            passNumber: st.passNumber || ((i + 1) + ' of ' + (order.qty || 1)),
+            createdAt: st.verifiedAt || new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+            checkedInAt: null,
+            checkedInBy: null
+          };
+          var exists = tickets.some(function (ex) { return ex.id === t.id || ex.verifyToken === t.verifyToken; });
+          if (!exists) {
+            tickets.unshift(t);
+          }
+          minted.push(t);
+        });
+      } else {
+        for (var i = 0; i < (order.qty || 1); i++) {
+          var ticketId = generateUniqueTicketId(tickets);
+          var token = generateSecureToken();
+          var admitCountPerTicket = order.tier === 'stag' ? 1 : order.tier === 'couple' ? 2 : 5;
+          var tPrice = order.tier === 'stag' ? 299 : order.tier === 'couple' ? 499 : 1199;
 
-        var ticket = {
-          id: ticketId,
-          verifyToken: token,
-          verifyUrl: '/verify/' + token,
-          name: order.name,
-          phone: order.phone,
-          email: order.email || '',
-          passType: order.passType,
-          tier: order.tier,
-          admitCount: admitCountPerTicket,
-          amount: tPrice,
-          paymentStatus: 'PAID',
-          paymentTxnId: order.paymentTxnId,
-          paymentMethod: order.paymentMethod,
-          status: 'ACTIVE',
-          orderRef: order.orderRef,
-          passNumber: (i + 1) + ' of ' + (order.qty || 1),
-          createdAt: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
-          checkedInAt: null,
-          checkedInBy: null
-        };
-        tickets.unshift(ticket);
-        minted.push(ticket);
+          var ticket = {
+            id: ticketId,
+            verifyToken: token,
+            verifyUrl: '/verify/' + token,
+            name: order.name,
+            phone: order.phone,
+            email: order.email || '',
+            passType: order.passType,
+            tier: order.tier,
+            admitCount: admitCountPerTicket,
+            amount: tPrice,
+            paymentStatus: 'PAID',
+            paymentTxnId: order.paymentTxnId,
+            paymentMethod: order.paymentMethod,
+            status: 'ACTIVE',
+            orderRef: order.orderRef,
+            passNumber: (i + 1) + ' of ' + (order.qty || 1),
+            createdAt: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }),
+            checkedInAt: null,
+            checkedInBy: null
+          };
+          tickets.unshift(ticket);
+          minted.push(ticket);
+        }
       }
 
       this.saveAllTickets(tickets);
@@ -1041,12 +1073,47 @@
     if (bookingFormStep) bookingFormStep.style.display = 'block';
   });
 
+  function resolveApiUrl(path) {
+    if (window.RAAS_BACKEND_API_URL && window.RAAS_BACKEND_API_URL.trim() !== '') {
+      return window.RAAS_BACKEND_API_URL.replace(/\/+$/, '') + path;
+    }
+    return path;
+  }
+
+  async function apiPostWithFallback(primaryPath, fallbackPath, bodyObj) {
+    var urls = [resolveApiUrl(primaryPath)];
+    if (fallbackPath) {
+      urls.push(resolveApiUrl(fallbackPath));
+    }
+
+    var lastErr = null;
+    for (var i = 0; i < urls.length; i++) {
+      try {
+        var res = await fetch(urls[i], {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(bodyObj)
+        });
+        if (res.status === 404 && i === 0 && urls.length > 1) {
+          continue; // Try direct function path if rewrite is not active
+        }
+        var data = await res.json();
+        return { ok: res.ok, status: res.status, data: data };
+      } catch (err) {
+        lastErr = err;
+        if (i < urls.length - 1) continue;
+      }
+    }
+    throw lastErr || new Error('Network error connecting to payment gateway backend.');
+  }
+
   async function launchRazorpayStandardCheckout() {
     if (!pendingOrderData) return;
 
     if (paymentCancelledCard) paymentCancelledCard.style.display = 'none';
     if (paymentFailedCard) paymentFailedCard.style.display = 'none';
     if (gatewayConfigRequiredCard) gatewayConfigRequiredCard.style.display = 'none';
+    if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
 
     // Register booking as PENDING in local database
     EventDB.createOrder({
@@ -1064,47 +1131,70 @@
       paymentMethod: 'Razorpay Standard Checkout'
     });
 
-    var keyId = window.RAZORPAY_KEY_ID || null;
-    var backendApi = window.RAAS_BACKEND_API_URL || null;
+    if (proceedToPaymentBtn) {
+      proceedToPaymentBtn.disabled = true;
+      proceedToPaymentBtn.textContent = 'CONNECTING TO RAZORPAY...';
+    }
 
-    if (!keyId && !backendApi) {
-      // Per instructions: If Razorpay credentials are not yet configured,
-      // DO NOT simulate or fake payment.
-      // Display clearly: "Razorpay credentials/configuration required."
-      if (gatewayConfigRequiredCard) gatewayConfigRequiredCard.style.display = 'block';
+    var razorpayOrderId = null;
+    var keyId = window.RAZORPAY_KEY_ID || null;
+    var orderAmountPaise = pendingOrderData.totalAmount * 100;
+
+    try {
+      // 1. CREATE ORDER SERVER-SIDE (Server determines exact price & uses Netlify env vars)
+      var orderResponse = await apiPostWithFallback(
+        '/api/payment/create-order',
+        '/.netlify/functions/create-order',
+        {
+          tier: pendingOrderData.tier,
+          qty: pendingOrderData.qty,
+          customerName: pendingOrderData.name,
+          customerPhone: pendingOrderData.phone,
+          customerEmail: pendingOrderData.email
+        }
+      );
+
+      var oData = orderResponse.data;
+
+      if (!orderResponse.ok || !oData || !oData.success) {
+        if (oData && (oData.error === 'GATEWAY_CREDENTIALS_REQUIRED' || oData.configured === false)) {
+          if (gatewayConfigRequiredCard) gatewayConfigRequiredCard.style.display = 'block';
+        } else {
+          var failMsg = (oData && oData.message) ? oData.message : 'Unable to create order with payment gateway.';
+          if (paymentFailedCard) {
+            var failDesc = paymentFailedCard.querySelector('p');
+            if (failDesc) failDesc.textContent = failMsg + ' Your RAAS LEELA pass has NOT been issued.';
+            paymentFailedCard.style.display = 'block';
+          }
+        }
+        if (proceedToPaymentBtn) {
+          proceedToPaymentBtn.disabled = false;
+          proceedToPaymentBtn.textContent = 'PROCEED TO PAYMENT';
+        }
+        return;
+      }
+
+      razorpayOrderId = oData.orderId;
+      keyId = oData.keyId || keyId;
+      orderAmountPaise = oData.amount; // Server-determined exact price in paise
+
+    } catch (netErr) {
+      console.error('Order creation network failure:', netErr);
+      if (paymentFailedCard) {
+        var failDesc = paymentFailedCard.querySelector('p');
+        if (failDesc) failDesc.textContent = 'Network error connecting to payment server. Please check your connection and try again.';
+        paymentFailedCard.style.display = 'block';
+      }
+      if (proceedToPaymentBtn) {
+        proceedToPaymentBtn.disabled = false;
+        proceedToPaymentBtn.textContent = 'PROCEED TO PAYMENT';
+      }
       return;
     }
 
-    var orderAmountPaise = pendingOrderData.totalAmount * 100;
-    var razorpayOrderId = null;
-
-    // Server-side order creation if backend is reachable
-    if (backendApi || window.location.port === '3000') {
-      try {
-        var createUrl = (backendApi || '') + '/api/payment/create-order';
-        var oRes = await fetch(createUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tier: pendingOrderData.tier,
-            qty: pendingOrderData.qty,
-            customerName: pendingOrderData.name,
-            customerPhone: pendingOrderData.phone,
-            customerEmail: pendingOrderData.email
-          })
-        });
-        var oData = await oRes.json();
-        if (oData && oData.success) {
-          razorpayOrderId = oData.orderId;
-          keyId = oData.keyId || keyId;
-          orderAmountPaise = oData.amount || orderAmountPaise;
-        } else if (oData && oData.error === 'GATEWAY_CREDENTIALS_REQUIRED') {
-          if (gatewayConfigRequiredCard) gatewayConfigRequiredCard.style.display = 'block';
-          return;
-        }
-      } catch (e) {
-        console.warn('Backend order endpoint unreachable, opening direct Razorpay Checkout with configured key', e);
-      }
+    if (proceedToPaymentBtn) {
+      proceedToPaymentBtn.disabled = false;
+      proceedToPaymentBtn.textContent = 'PROCEED TO PAYMENT';
     }
 
     function openRzpModal() {
@@ -1115,7 +1205,7 @@
         name: 'RAAS LEELA 2026',
         description: pendingOrderData.item.name + ' \u2014 The Social House',
         image: 'poster.jpg',
-        order_id: razorpayOrderId || undefined,
+        order_id: razorpayOrderId,
         prefill: {
           name: pendingOrderData.name,
           contact: pendingOrderData.phone,
@@ -1124,30 +1214,78 @@
         theme: { color: '#8d122b' },
         modal: {
           ondismiss: function () {
-            // CUSTOMER CLOSES RAZORPAY CHECKOUT
+            // Customer closed / cancelled checkout popup
             if (paymentCancelledCard) paymentCancelledCard.style.display = 'block';
             if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
             if (paymentFailedCard) paymentFailedCard.style.display = 'none';
           }
         },
         handler: async function (response) {
-          // PAYMENT SUBMITTED BY CUSTOMER
+          // Razorpay payment authorization received -> MUST VERIFY SERVER-SIDE
           if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'block';
           if (paymentCancelledCard) paymentCancelledCard.style.display = 'none';
           if (paymentFailedCard) paymentFailedCard.style.display = 'none';
 
-          var isVerified = await verifyPaymentWithServer(response, pendingOrderData);
-          if (isVerified) {
-            var minted = EventDB.mintTicketsForPaidOrder(pendingOrderData.orderRef, response.razorpay_payment_id);
-            currentlyGeneratedTickets = minted;
-            currentActiveTicketIndex = 0;
-            if (bookingConfirmStep) bookingConfirmStep.style.display = 'none';
-            if (bookingSuccessStep) bookingSuccessStep.style.display = 'block';
-            displayConfirmedTicket(0);
-            setupMultiPassSwitcher();
-          } else {
+          try {
+            var verifyResponse = await apiPostWithFallback(
+              '/api/payment/verify',
+              '/.netlify/functions/verify-payment',
+              {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                bookingDetails: {
+                  orderRef: pendingOrderData.orderRef,
+                  tier: pendingOrderData.tier,
+                  qty: pendingOrderData.qty,
+                  customerName: pendingOrderData.name,
+                  customerPhone: pendingOrderData.phone,
+                  customerEmail: pendingOrderData.email
+                }
+              }
+            );
+
+            var vData = verifyResponse.data;
+
+            if (verifyResponse.ok && vData && vData.success === true) {
+              // ONLY UPON CRYPTOGRAPHIC SERVER VERIFICATION:
+              // Record paid status and save official server-minted tickets
+              var serverTickets = vData.tickets || [];
+              var minted = EventDB.mintTicketsForPaidOrder(
+                pendingOrderData.orderRef,
+                response.razorpay_payment_id,
+                serverTickets
+              );
+              currentlyGeneratedTickets = minted;
+              currentActiveTicketIndex = 0;
+
+              if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
+              if (bookingConfirmStep) bookingConfirmStep.style.display = 'none';
+              if (bookingSuccessStep) bookingSuccessStep.style.display = 'block';
+              displayConfirmedTicket(0);
+              setupMultiPassSwitcher();
+            } else {
+              // Server-side verification FAILED: NEVER issue ticket, keep UNPAID
+              if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
+              if (paymentFailedCard) {
+                var failDesc = paymentFailedCard.querySelector('p');
+                var errDetail = (vData && vData.message) ? vData.message : 'Cryptographic signature mismatch.';
+                if (failDesc) {
+                  failDesc.textContent = 'Payment verification failed: ' + errDetail + ' Pass has NOT been issued. Payment ID: ' + response.razorpay_payment_id;
+                }
+                paymentFailedCard.style.display = 'block';
+              }
+            }
+          } catch (vErr) {
+            console.error('Verification network failure:', vErr);
             if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
-            if (paymentFailedCard) paymentFailedCard.style.display = 'block';
+            if (paymentFailedCard) {
+              var failDesc = paymentFailedCard.querySelector('p');
+              if (failDesc) {
+                failDesc.textContent = 'Network error during payment verification. Please contact support with Payment ID: ' + response.razorpay_payment_id;
+              }
+              paymentFailedCard.style.display = 'block';
+            }
           }
         }
       };
@@ -1155,7 +1293,12 @@
       try {
         var rzp = new Razorpay(options);
         rzp.on('payment.failed', function (resp) {
-          if (paymentFailedCard) paymentFailedCard.style.display = 'block';
+          if (paymentFailedCard) {
+            var failDesc = paymentFailedCard.querySelector('p');
+            var desc = (resp && resp.error && resp.error.description) ? resp.error.description : 'Payment was declined or failed.';
+            if (failDesc) failDesc.textContent = desc + ' Your RAAS LEELA pass has NOT been issued.';
+            paymentFailedCard.style.display = 'block';
+          }
           if (paymentCancelledCard) paymentCancelledCard.style.display = 'none';
           if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
         });
@@ -1177,29 +1320,6 @@
     } else {
       openRzpModal();
     }
-  }
-
-  async function verifyPaymentWithServer(rzpResponse, orderData) {
-    var backendApi = window.RAAS_BACKEND_API_URL || (window.location.port === '3000' ? '' : null);
-    if (backendApi !== null) {
-      try {
-        var res = await fetch(backendApi + '/api/payment/verify', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderRef: orderData.orderRef,
-            razorpay_payment_id: rzpResponse.razorpay_payment_id,
-            razorpay_order_id: rzpResponse.razorpay_order_id,
-            razorpay_signature: rzpResponse.razorpay_signature
-          })
-        });
-        var data = await res.json();
-        return data && data.success;
-      } catch (e) {
-        return false;
-      }
-    }
-    return !!rzpResponse.razorpay_payment_id;
   }
 
   proceedToPaymentBtn?.addEventListener('click', launchRazorpayStandardCheckout);

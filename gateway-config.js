@@ -1,13 +1,18 @@
 /**
- * Raas Leela 2026 - Payment Gateway & API Configuration
+ * Raas Leela 2026 - Payment Gateway & Netlify API Configuration
  *
- * NOTE: For maximum security, secret keys (RAZORPAY_KEY_SECRET, WEBHOOK_SECRET)
- * must NEVER be placed in client-side files or public repositories.
- * Secret keys belong strictly in backend environment variables or server.js.
+ * SECURITY NOTICE:
+ * - Never place RAZORPAY_KEY_SECRET in frontend files or client-side JavaScript.
+ * - In Netlify deployment, credentials (RAZORPAY_KEY_ID & RAZORPAY_KEY_SECRET) are
+ *   configured securely in Netlify Environment Variables:
+ *   Site configuration > Environment variables
+ * - Netlify Functions (/netlify/functions/create-order & /netlify/functions/verify-payment)
+ *   automatically access these environment variables on the server side.
+ * - Client-side checkout receives the public Key ID securely from the create-order response.
  *
- * To enable live/test Razorpay payments:
- * - Enter your public Razorpay Key ID below (e.g. 'rzp_test_XXXXXXXXXXXXXX' or 'rzp_live_XXXXXXXXXXXXXX')
- * - If using the companion server.js backend, set RAAS_BACKEND_API_URL (e.g. 'http://localhost:3000' or your production backend URL)
+ * OPTIONAL CONFIGURATION:
+ * - window.RAAS_BACKEND_API_URL: Leave empty when deployed on Netlify (uses relative routes).
+ *   Set this ONLY if accessing the Netlify backend from an external domain (e.g. 'https://your-site.netlify.app').
  */
 window.RAZORPAY_KEY_ID = window.RAZORPAY_KEY_ID || "";
 window.RAAS_BACKEND_API_URL = window.RAAS_BACKEND_API_URL || "";

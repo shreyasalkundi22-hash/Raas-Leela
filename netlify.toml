@@ -1,0 +1,34 @@
+[build]
+  publish = "."
+  functions = "netlify/functions"
+
+# Rewrites for Clean API Routes
+[[redirects]]
+  from = "/api/payment/create-order"
+  to = "/.netlify/functions/create-order"
+  status = 200
+
+[[redirects]]
+  from = "/api/payment/verify"
+  to = "/.netlify/functions/verify-payment"
+  status = 200
+
+[[redirects]]
+  from = "/api/ticket/verify"
+  to = "/.netlify/functions/verify-ticket"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/login"
+  to = "/.netlify/functions/admin-auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/verify"
+  to = "/.netlify/functions/admin-auth"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/logout"
+  to = "/.netlify/functions/admin-auth"
+  status = 200
