@@ -1150,7 +1150,8 @@
           qty: pendingOrderData.qty,
           customerName: pendingOrderData.name,
           customerPhone: pendingOrderData.phone,
-          customerEmail: pendingOrderData.email
+          customerEmail: pendingOrderData.email,
+          keyId: (window.RAZORPAY_KEY_ID && window.RAZORPAY_KEY_ID.trim()) ? window.RAZORPAY_KEY_ID.trim() : undefined
         }
       );
 
@@ -1158,7 +1159,13 @@
 
       if (!orderResponse.ok || !oData || !oData.success) {
         if (oData && (oData.error === 'GATEWAY_CREDENTIALS_REQUIRED' || oData.configured === false)) {
-          if (gatewayConfigRequiredCard) gatewayConfigRequiredCard.style.display = 'block';
+          if (gatewayConfigRequiredCard) {
+            var descElem = gatewayConfigRequiredCard.querySelector('.notice-desc');
+            if (descElem && oData.message) {
+              descElem.textContent = oData.message;
+            }
+            gatewayConfigRequiredCard.style.display = 'block';
+          }
         } else {
           var failMsg = (oData && oData.message) ? oData.message : 'Unable to create order with payment gateway.';
           if (paymentFailedCard) {

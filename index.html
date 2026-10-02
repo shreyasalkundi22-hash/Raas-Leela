@@ -1218,12 +1218,11 @@
             <h5>Razorpay credentials/configuration required.</h5>
           </div>
           <p class="notice-desc">
-            To enable live/test Razorpay payments, please configure your API keys in <code>gateway-config.js</code> or your backend environment:
+            To enable Razorpay payments, please configure your credentials in Netlify Site configuration &gt; Environment variables:
           </p>
           <div class="config-keys-list">
-            <div>&bull; <code>RAZORPAY_KEY_ID</code> (e.g. <code>rzp_test_...</code> or <code>rzp_live_...</code>)</div>
-            <div>&bull; <code>RAZORPAY_KEY_SECRET</code> (Server-side HMAC signature verification secret)</div>
-            <div>&bull; <code>WEBHOOK_SECRET</code> (Optional server webhook secret)</div>
+            <div>&bull; <code>RAZORPAY_KEY_ID</code> &mdash; Scope must include <strong>Functions</strong> (or All scopes)</div>
+            <div>&bull; <code>RAZORPAY_KEY_SECRET</code> &mdash; Scope must include <strong>Functions</strong> (Server-side HMAC only)</div>
           </div>
           <p class="config-keys-note">Booking remains PENDING/UNPAID. No ticket or QR will be issued without verified payment.</p>
           <button type="button" class="btn btn-gold-shimmer btn-sm btn-block" id="retryAfterConfigBtn" style="margin-top: 10px;">
