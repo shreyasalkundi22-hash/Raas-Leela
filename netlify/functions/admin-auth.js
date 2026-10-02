@@ -2,32 +2,18 @@
  * Netlify Serverless Function: admin-auth
  * 
  * Server-Side Admin Authentication for RAAS LEELA 2026.
- * 
- * Validates the case-sensitive admin password 'rl20206' using cryptographic SHA-256.
- * Issues secure session tokens for verified admin operations.
+ * Validates the exact case-sensitive admin password 'rl20206' using cryptographic SHA-256.
+ * Issues stateless HMAC session tokens verified across all serverless endpoints.
  */
 
-const crypto = require('crypto');
-
-// SHA-256 of exact case-sensitive admin password 'rl20206'
-const ADMIN_PASSWORD_HASH = process.env.ADMIN_PASSWORD_HASH || 'd3778c56ec11500849532666e99ef708ad3e2dfb4935366ffbf8844dd16a5260';
+const { ADMIN_PASSWORD_HASH, sha256, createAdminSessionToken, verifyAdminSession } = require('./admin-guard');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, X-Admin-Token',
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Content-Type': 'application/json; charset=utf-8'
 };
-
-const activeSessions = new Set();
-
-function sha256(str) {
-  return crypto.createHash('sha256').update(String(str)).digest('hex');
-}
-
-function generateSecureToken(prefix = 'adm_') {
-  return prefix + crypto.randomBytes(16).toString('hex');
-}
 
 exports.handler = async function (event, context) {
   if (event.httpMethod === 'OPTIONS') {
@@ -40,7 +26,11 @@ exports.handler = async function (event, context) {
   if (event.httpMethod === 'POST' && (path.endsWith('/login') || !path.includes('/verify') && !path.includes('/logout'))) {
     let payload = {};
     try {
-      payload = JSON.parse(event.body || '{}');
+      let bodyRaw = event.body || '{}';
+      if (event.isBase64Encoded) {
+        bodyRaw = Buffer.from(bodyRaw, 'base64').toString('utf8');
+      }
+      payload = JSON.parse(bodyRaw);
     } catch (e) {
       return {
         statusCode: 400,
@@ -53,8 +43,7 @@ exports.handler = async function (event, context) {
     const inputHash = sha256(password);
 
     if (inputHash === ADMIN_PASSWORD_HASH) {
-      const sessionToken = generateSecureToken('adm_');
-      activeSessions.add(sessionToken);
+      const sessionToken = createAdminSessionToken();
       return {
         statusCode: 200,
         headers: CORS_HEADERS,
@@ -79,10 +68,7 @@ exports.handler = async function (event, context) {
 
   // 2. VERIFY SESSION
   if (event.httpMethod === 'GET' || path.endsWith('/verify')) {
-    const authHeader = (event.headers && (event.headers.authorization || event.headers.Authorization)) || '';
-    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-
-    if (token && activeSessions.has(token)) {
+    if (verifyAdminSession(event)) {
       return {
         statusCode: 200,
         headers: CORS_HEADERS,
@@ -98,9 +84,6 @@ exports.handler = async function (event, context) {
 
   // 3. LOGOUT
   if (path.endsWith('/logout')) {
-    const authHeader = (event.headers && (event.headers.authorization || event.headers.Authorization)) || '';
-    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
-    activeSessions.delete(token);
     return {
       statusCode: 200,
       headers: CORS_HEADERS,

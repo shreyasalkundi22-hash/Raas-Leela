@@ -1,10 +1,16 @@
 /**
- * Netlify Serverless Function: verify-ticket
+ * Netlify Function: verify-ticket
  * 
- * Gate Staff & Public Ticket Verification for RAAS LEELA 2026.
+ * Gate Staff & Public Ticket Scanner Inspection for RAAS LEELA 2026.
+ * Performs READ-ONLY inspection against Supabase.
  * 
- * Allows staff scanner or ticket QR code lookups by verification token or ticket ID.
+ * CRITICAL RULE (Section 11):
+ * Scanning alone does NOT redeem the ticket.
+ * Displays attendee details and readiness status to staff.
+ * Staff must explicitly press 'ADMIT & CLOSE TICKET' to redeem.
  */
+
+const { rpc, getSupabaseConfig } = require('./supabase-client');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -18,14 +24,21 @@ exports.handler = async function (event, context) {
     return { statusCode: 204, headers: CORS_HEADERS, body: '' };
   }
 
-  const tokenParam = (event.queryStringParameters && event.queryStringParameters.token) || '';
-  let token = tokenParam;
+  let token = '';
 
-  if (!token && event.body) {
+  if (event.httpMethod === 'GET') {
+    const params = event.queryStringParameters || {};
+    token = params.token || params.ticketId || params.id || '';
+  } else if (event.httpMethod === 'POST') {
+    let payload = {};
     try {
-      const parsed = JSON.parse(event.body);
-      token = parsed.token || parsed.ticketId || '';
+      let bodyRaw = event.body || '{}';
+      if (event.isBase64Encoded) {
+        bodyRaw = Buffer.from(bodyRaw, 'base64').toString('utf8');
+      }
+      payload = JSON.parse(bodyRaw);
     } catch (e) {}
+    token = payload.token || payload.ticketId || payload.id || '';
   }
 
   const clean = String(token || '').trim();
@@ -38,18 +51,32 @@ exports.handler = async function (event, context) {
     };
   }
 
-  // Token format validation: e.g. rlv_<32 hex chars> or RL-<6 chars>
-  const isTokenFormat = /^rlv_[a-f0-9]{32}$/i.test(clean);
-  const isTicketIdFormat = /^RL-[A-Z0-9]{6}$/i.test(clean);
+  const config = getSupabaseConfig();
+  if (!config.configured) {
+    return {
+      statusCode: 503,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ success: false, error: 'DATABASE_CONFIGURATION_REQUIRED', message: config.error })
+    };
+  }
 
-  return {
-    statusCode: 200,
-    headers: CORS_HEADERS,
-    body: JSON.stringify({
-      success: true,
-      validFormat: isTokenFormat || isTicketIdFormat,
-      token: clean,
-      verified: true
-    })
-  };
+  try {
+    const result = await rpc('inspect_ticket_for_staff', { p_token: clean });
+    return {
+      statusCode: 200,
+      headers: CORS_HEADERS,
+      body: JSON.stringify(result)
+    };
+  } catch (err) {
+    console.error('[verify-ticket] Error:', err);
+    return {
+      statusCode: 500,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({
+        success: false,
+        error: 'INSPECTION_FAILED',
+        message: 'Could not inspect ticket in database: ' + err.message
+      })
+    };
+  }
 };
