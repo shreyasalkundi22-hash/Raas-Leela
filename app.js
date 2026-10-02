@@ -12,6 +12,11 @@
 (function () {
   'use strict';
 
+  // Prevent browser from restoring scroll position to passes on refresh / reload
+  if ('scrollRestoration' in history) {
+    history.scrollRestoration = 'manual';
+  }
+
   /* ==========================================================================
      1. EMBEDDED STANDARD QR CODE GENERATOR (Kazuhiko Arase / MIT)
      Standard 8-Bit Byte Mode Matrix \u2014 100% Compatible with smartphones & scanners
@@ -611,7 +616,7 @@
         amount: Number(data.amount),
         paymentStatus: data.paymentStatus || 'UNPAID', // ONLY 'PAID' counts as verified revenue
         paymentTxnId: data.paymentTxnId || null,
-        paymentMethod: data.paymentMethod || 'Razorpay Gateway',
+        paymentMethod: data.paymentMethod || 'Personal UPI QR',
         createdAt: new Date().toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
       };
       orders.unshift(order);
@@ -914,14 +919,15 @@
     group: { name: 'GROUP OF 5', price: 1199, admit: 5 }
   };
 
-  var pendingOrderData = null;
+  var currentActiveBooking = null;
   var currentlyGeneratedTickets = [];
   var currentActiveTicketIndex = 0;
 
   var bookingModal = document.getElementById('bookingModal');
   var bookingModalCloseBtn = document.getElementById('bookingModalCloseBtn');
   var bookingFormStep = document.getElementById('bookingFormStep');
-  var bookingConfirmStep = document.getElementById('bookingConfirmStep');
+  var bookingPaymentStep = document.getElementById('bookingPaymentStep');
+  var bookingSubmittedStep = document.getElementById('bookingSubmittedStep');
   var bookingSuccessStep = document.getElementById('bookingSuccessStep');
 
   var ticketCheckoutForm = document.getElementById('ticketCheckoutForm');
@@ -933,21 +939,36 @@
   var summarySubtotalText = document.getElementById('summarySubtotalText');
   var summaryTotalText = document.getElementById('summaryTotalText');
 
-  // Confirmation Screen Elements
-  var confirmOrderRef = document.getElementById('confirmOrderRef');
-  var confirmPassTitle = document.getElementById('confirmPassTitle');
-  var confirmHeadcountBadge = document.getElementById('confirmHeadcountBadge');
-  var confirmAttendeeName = document.getElementById('confirmAttendeeName');
-  var confirmAttendeePhone = document.getElementById('confirmAttendeePhone');
-  var confirmTotalAmount = document.getElementById('confirmTotalAmount');
-  var proceedToPaymentBtn = document.getElementById('proceedToPaymentBtn');
-  var backToFormBtn = document.getElementById('backToFormBtn');
+  // Step 2: Personal UPI Elements
+  var upiBookingIdDisplay = document.getElementById('upiBookingIdDisplay');
+  var upiPassTitle = document.getElementById('upiPassTitle');
+  var upiHeadcountBadge = document.getElementById('upiHeadcountBadge');
+  var upiAttendeeName = document.getElementById('upiAttendeeName');
+  var upiAttendeePhone = document.getElementById('upiAttendeePhone');
+  var upiAmountToPay = document.getElementById('upiAmountToPay');
+  var upiAmountInstruction = document.getElementById('upiAmountInstruction');
+  var personalUpiQrImage = document.getElementById('personalUpiQrImage');
+  var upiSubmissionForm = document.getElementById('upiSubmissionForm');
+  var upiUtrInput = document.getElementById('upiUtrInput');
+  var submitUpiPaymentBtn = document.getElementById('submitUpiPaymentBtn');
+  var backToFormFromUpiBtn = document.getElementById('backToFormFromUpiBtn');
 
-  // Payment Status Cards
-  var paymentVerifyingCard = document.getElementById('paymentVerifyingCard');
-  var paymentCancelledCard = document.getElementById('paymentCancelledCard');
-  var paymentFailedCard = document.getElementById('paymentFailedCard');
-  var gatewayConfigRequiredCard = document.getElementById('gatewayConfigRequiredCard');
+  // Step 2B: Payment Submitted Confirmation Elements
+  var submittedBookingIdDisplay = document.getElementById('submittedBookingIdDisplay');
+  var submittedPassNameDisplay = document.getElementById('submittedPassNameDisplay');
+  var submittedAmountDisplay = document.getElementById('submittedAmountDisplay');
+  var submittedUtrDisplay = document.getElementById('submittedUtrDisplay');
+  var checkSubmittedTicketBtn = document.getElementById('checkSubmittedTicketBtn');
+  var closeSubmittedBookingBtn = document.getElementById('closeSubmittedBookingBtn');
+
+  // Step 4: Check / Retrieve Ticket Modal Elements
+  var checkTicketModal = document.getElementById('checkTicketModal');
+  var checkTicketModalCloseBtn = document.getElementById('checkTicketModalCloseBtn');
+  var checkTicketForm = document.getElementById('checkTicketForm');
+  var lookupBookingIdInput = document.getElementById('lookupBookingIdInput');
+  var lookupPhoneInput = document.getElementById('lookupPhoneInput');
+  var submitCheckTicketBtn = document.getElementById('submitCheckTicketBtn');
+  var lookupResultContainer = document.getElementById('lookupResultContainer');
 
   // Step 3 Elements
   var ticketConfirmedMonolith = document.getElementById('ticketConfirmedMonolith');
@@ -1003,7 +1024,8 @@
 
   function openBookingModal() {
     if (bookingFormStep) bookingFormStep.style.display = 'block';
-    if (bookingConfirmStep) bookingConfirmStep.style.display = 'none';
+    if (bookingPaymentStep) bookingPaymentStep.style.display = 'none';
+    if (bookingSubmittedStep) bookingSubmittedStep.style.display = 'none';
     if (bookingSuccessStep) bookingSuccessStep.style.display = 'none';
     bookingModal?.classList.add('active');
     document.body.style.overflow = 'hidden';
@@ -1016,63 +1038,6 @@
 
   bookingModalCloseBtn?.addEventListener('click', closeBookingModal);
 
-  ticketCheckoutForm?.addEventListener('submit', function (e) {
-    e.preventDefault();
-
-    var cat = modalPassCategory ? modalPassCategory.value : 'couple';
-    var qty = parseInt(modalPassQty ? modalPassQty.value : '1', 10) || 1;
-    var item = prices[cat] || prices.couple;
-    var totalAmount = item.price * qty;
-    var headcount = item.admit * qty;
-
-    var name = document.getElementById('attendeeFullName')?.value.trim();
-    var phone = document.getElementById('attendeeWhatsApp')?.value.trim();
-    var email = document.getElementById('attendeeEmailAddress')?.value.trim();
-
-    if (!name || !phone) {
-      alert('Please enter your Full Name and 10-digit WhatsApp Number.');
-      return;
-    }
-
-    var orderRef = 'ORD-RL26-' + Math.floor(10000 + Math.random() * 90000);
-
-    pendingOrderData = {
-      orderRef: orderRef,
-      name: name,
-      phone: phone,
-      email: email,
-      tier: cat,
-      qty: qty,
-      item: item,
-      totalAmount: totalAmount,
-      headcount: headcount
-    };
-
-    // Update Confirmation Screen
-    if (confirmOrderRef) confirmOrderRef.textContent = orderRef;
-    if (confirmPassTitle) confirmPassTitle.textContent = item.name.toUpperCase();
-    if (confirmHeadcountBadge) confirmHeadcountBadge.textContent = headcount + ' ' + (headcount > 1 ? 'PEOPLE' : 'PERSON');
-    if (confirmAttendeeName) confirmAttendeeName.textContent = name;
-    if (confirmAttendeePhone) confirmAttendeePhone.textContent = phone;
-    if (confirmTotalAmount) confirmTotalAmount.textContent = '\u20B9' + totalAmount.toLocaleString('en-IN');
-
-    // Reset status cards
-    if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
-    if (paymentCancelledCard) paymentCancelledCard.style.display = 'none';
-    if (paymentFailedCard) paymentFailedCard.style.display = 'none';
-    if (gatewayConfigRequiredCard) gatewayConfigRequiredCard.style.display = 'none';
-
-    // Show Confirmation Screen
-    if (bookingFormStep) bookingFormStep.style.display = 'none';
-    if (bookingConfirmStep) bookingConfirmStep.style.display = 'block';
-    if (bookingSuccessStep) bookingSuccessStep.style.display = 'none';
-  });
-
-  backToFormBtn?.addEventListener('click', function () {
-    if (bookingConfirmStep) bookingConfirmStep.style.display = 'none';
-    if (bookingFormStep) bookingFormStep.style.display = 'block';
-  });
-
   function resolveApiUrl(path) {
     if (window.RAAS_BACKEND_API_URL && window.RAAS_BACKEND_API_URL.trim() !== '') {
       return window.RAAS_BACKEND_API_URL.replace(/\/+$/, '') + path;
@@ -1080,18 +1045,19 @@
     return path;
   }
 
-  async function apiPostWithFallback(primaryPath, fallbackPath, bodyObj) {
+  async function apiPostWithFallback(primaryPath, fallbackPath, bodyObj, extraHeaders) {
     var urls = [resolveApiUrl(primaryPath)];
     if (fallbackPath) {
       urls.push(resolveApiUrl(fallbackPath));
     }
 
+    var headers = Object.assign({ 'Content-Type': 'application/json' }, extraHeaders || {});
     var lastErr = null;
     for (var i = 0; i < urls.length; i++) {
       try {
         var res = await fetch(urls[i], {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: headers,
           body: JSON.stringify(bodyObj)
         });
         if (res.status === 404 && i === 0 && urls.length > 1) {
@@ -1104,235 +1070,381 @@
         if (i < urls.length - 1) continue;
       }
     }
-    throw lastErr || new Error('Network error connecting to payment gateway backend.');
+    throw lastErr || new Error('Network error connecting to backend service.');
   }
 
-  async function launchRazorpayStandardCheckout() {
-    if (!pendingOrderData) return;
+  // STEP 1 -> STEP 2: Customer submits pass & details to create booking in Supabase
+  ticketCheckoutForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
 
-    if (paymentCancelledCard) paymentCancelledCard.style.display = 'none';
-    if (paymentFailedCard) paymentFailedCard.style.display = 'none';
-    if (gatewayConfigRequiredCard) gatewayConfigRequiredCard.style.display = 'none';
-    if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
+    var cat = modalPassCategory ? modalPassCategory.value : 'couple';
+    var qty = parseInt(modalPassQty ? modalPassQty.value : '1', 10) || 1;
+    var name = document.getElementById('attendeeFullName')?.value.trim();
+    var phone = document.getElementById('attendeeWhatsApp')?.value.trim();
+    var email = document.getElementById('attendeeEmailAddress')?.value.trim();
 
-    // Register booking as PENDING in local database
-    EventDB.createOrder({
-      orderRef: pendingOrderData.orderRef,
-      name: pendingOrderData.name,
-      phone: pendingOrderData.phone,
-      email: pendingOrderData.email,
-      passType: pendingOrderData.item.name,
-      tier: pendingOrderData.tier,
-      qty: pendingOrderData.qty,
-      admitCount: pendingOrderData.headcount,
-      amount: pendingOrderData.totalAmount,
-      paymentStatus: 'PENDING',
-      ticketStatus: 'NOT_ISSUED',
-      paymentMethod: 'Razorpay Standard Checkout'
-    });
-
-    if (proceedToPaymentBtn) {
-      proceedToPaymentBtn.disabled = true;
-      proceedToPaymentBtn.textContent = 'CONNECTING TO RAZORPAY...';
-    }
-
-    var razorpayOrderId = null;
-    var keyId = window.RAZORPAY_KEY_ID || null;
-    var orderAmountPaise = pendingOrderData.totalAmount * 100;
-
-    try {
-      // 1. CREATE ORDER SERVER-SIDE (Server determines exact price & uses Netlify env vars)
-      var orderResponse = await apiPostWithFallback(
-        '/api/payment/create-order',
-        '/.netlify/functions/create-order',
-        {
-          tier: pendingOrderData.tier,
-          qty: pendingOrderData.qty,
-          customerName: pendingOrderData.name,
-          customerPhone: pendingOrderData.phone,
-          customerEmail: pendingOrderData.email,
-          keyId: (window.RAZORPAY_KEY_ID && window.RAZORPAY_KEY_ID.trim()) ? window.RAZORPAY_KEY_ID.trim() : undefined
-        }
-      );
-
-      var oData = orderResponse.data;
-
-      if (!orderResponse.ok || !oData || !oData.success) {
-        if (oData && (oData.error === 'GATEWAY_CREDENTIALS_REQUIRED' || oData.configured === false)) {
-          if (gatewayConfigRequiredCard) {
-            var descElem = gatewayConfigRequiredCard.querySelector('.notice-desc');
-            if (descElem && oData.message) {
-              descElem.textContent = oData.message;
-            }
-            gatewayConfigRequiredCard.style.display = 'block';
-          }
-        } else {
-          var failMsg = (oData && oData.message) ? oData.message : 'Unable to create order with payment gateway.';
-          if (paymentFailedCard) {
-            var failDesc = paymentFailedCard.querySelector('p');
-            if (failDesc) failDesc.textContent = failMsg + ' Your RAAS LEELA pass has NOT been issued.';
-            paymentFailedCard.style.display = 'block';
-          }
-        }
-        if (proceedToPaymentBtn) {
-          proceedToPaymentBtn.disabled = false;
-          proceedToPaymentBtn.textContent = 'PROCEED TO PAYMENT';
-        }
-        return;
-      }
-
-      razorpayOrderId = oData.orderId;
-      keyId = oData.keyId || keyId;
-      orderAmountPaise = oData.amount; // Server-determined exact price in paise
-
-    } catch (netErr) {
-      console.error('Order creation network failure:', netErr);
-      if (paymentFailedCard) {
-        var failDesc = paymentFailedCard.querySelector('p');
-        if (failDesc) failDesc.textContent = 'Network error connecting to payment server. Please check your connection and try again.';
-        paymentFailedCard.style.display = 'block';
-      }
-      if (proceedToPaymentBtn) {
-        proceedToPaymentBtn.disabled = false;
-        proceedToPaymentBtn.textContent = 'PROCEED TO PAYMENT';
-      }
+    if (!name || name.length < 2) {
+      alert('Please enter your full attendee name.');
       return;
     }
 
-    if (proceedToPaymentBtn) {
-      proceedToPaymentBtn.disabled = false;
-      proceedToPaymentBtn.textContent = 'PROCEED TO PAYMENT';
+    var cleanPhone = phone ? phone.replace(/[^0-9]/g, '') : '';
+    if (!cleanPhone || cleanPhone.length < 10) {
+      alert('Please enter a valid 10-digit WhatsApp number.');
+      return;
     }
 
-    function openRzpModal() {
-      var options = {
-        key: keyId,
-        amount: orderAmountPaise,
-        currency: 'INR',
-        name: 'RAAS LEELA 2026',
-        description: pendingOrderData.item.name + ' \u2014 The Social House',
-        image: 'poster.jpg',
-        order_id: razorpayOrderId,
-        prefill: {
-          name: pendingOrderData.name,
-          contact: pendingOrderData.phone,
-          email: pendingOrderData.email || ''
-        },
-        theme: { color: '#8d122b' },
-        modal: {
-          ondismiss: function () {
-            // Customer closed / cancelled checkout popup
-            if (paymentCancelledCard) paymentCancelledCard.style.display = 'block';
-            if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
-            if (paymentFailedCard) paymentFailedCard.style.display = 'none';
-          }
-        },
-        handler: async function (response) {
-          // Razorpay payment authorization received -> MUST VERIFY SERVER-SIDE
-          if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'block';
-          if (paymentCancelledCard) paymentCancelledCard.style.display = 'none';
-          if (paymentFailedCard) paymentFailedCard.style.display = 'none';
+    var proceedBtn = document.getElementById('proceedToPayBtn');
+    var origHtml = proceedBtn ? proceedBtn.innerHTML : '';
+    if (proceedBtn) {
+      proceedBtn.disabled = true;
+      proceedBtn.innerHTML = '<span>RESERVING PASS &amp; GENERATING BOOKING...</span>';
+    }
 
-          try {
-            var verifyResponse = await apiPostWithFallback(
-              '/api/payment/verify',
-              '/.netlify/functions/verify-payment',
-              {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                bookingDetails: {
-                  orderRef: pendingOrderData.orderRef,
-                  tier: pendingOrderData.tier,
-                  qty: pendingOrderData.qty,
-                  customerName: pendingOrderData.name,
-                  customerPhone: pendingOrderData.phone,
-                  customerEmail: pendingOrderData.email
-                }
-              }
-            );
-
-            var vData = verifyResponse.data;
-
-            if (verifyResponse.ok && vData && vData.success === true) {
-              // ONLY UPON CRYPTOGRAPHIC SERVER VERIFICATION:
-              // Record paid status and save official server-minted tickets
-              var serverTickets = vData.tickets || [];
-              var minted = EventDB.mintTicketsForPaidOrder(
-                pendingOrderData.orderRef,
-                response.razorpay_payment_id,
-                serverTickets
-              );
-              currentlyGeneratedTickets = minted;
-              currentActiveTicketIndex = 0;
-
-              if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
-              if (bookingConfirmStep) bookingConfirmStep.style.display = 'none';
-              if (bookingSuccessStep) bookingSuccessStep.style.display = 'block';
-              displayConfirmedTicket(0);
-              setupMultiPassSwitcher();
-            } else {
-              // Server-side verification FAILED: NEVER issue ticket, keep UNPAID
-              if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
-              if (paymentFailedCard) {
-                var failDesc = paymentFailedCard.querySelector('p');
-                var errDetail = (vData && vData.message) ? vData.message : 'Cryptographic signature mismatch.';
-                if (failDesc) {
-                  failDesc.textContent = 'Payment verification failed: ' + errDetail + ' Pass has NOT been issued. Payment ID: ' + response.razorpay_payment_id;
-                }
-                paymentFailedCard.style.display = 'block';
-              }
-            }
-          } catch (vErr) {
-            console.error('Verification network failure:', vErr);
-            if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
-            if (paymentFailedCard) {
-              var failDesc = paymentFailedCard.querySelector('p');
-              if (failDesc) {
-                failDesc.textContent = 'Network error during payment verification. Please contact support with Payment ID: ' + response.razorpay_payment_id;
-              }
-              paymentFailedCard.style.display = 'block';
-            }
-          }
+    try {
+      var res = await apiPostWithFallback(
+        '/api/booking/create',
+        '/.netlify/functions/create-booking',
+        {
+          tier: cat,
+          qty: qty,
+          customerName: name,
+          customerPhone: cleanPhone,
+          customerEmail: email
         }
-      };
+      );
 
-      try {
-        var rzp = new Razorpay(options);
-        rzp.on('payment.failed', function (resp) {
-          if (paymentFailedCard) {
-            var failDesc = paymentFailedCard.querySelector('p');
-            var desc = (resp && resp.error && resp.error.description) ? resp.error.description : 'Payment was declined or failed.';
-            if (failDesc) failDesc.textContent = desc + ' Your RAAS LEELA pass has NOT been issued.';
-            paymentFailedCard.style.display = 'block';
-          }
-          if (paymentCancelledCard) paymentCancelledCard.style.display = 'none';
-          if (paymentVerifyingCard) paymentVerifyingCard.style.display = 'none';
-        });
-        rzp.open();
-      } catch (err) {
-        console.error('Razorpay initialization error:', err);
-        if (paymentFailedCard) paymentFailedCard.style.display = 'block';
+      var oData = res.data;
+      if (!res.ok || !oData || !oData.success) {
+        var errMsg = (oData && oData.message) ? oData.message : 'Unable to initialize booking. Please try again.';
+        alert(errMsg);
+        return;
+      }
+
+      var booking = oData.booking;
+      currentActiveBooking = booking;
+
+      showUpiPaymentStep(booking);
+
+    } catch (err) {
+      console.error('Booking creation failure:', err);
+      alert('Network error connecting to booking service. Please check your internet connection and try again.');
+    } finally {
+      if (proceedBtn) {
+        proceedBtn.disabled = false;
+        proceedBtn.innerHTML = origHtml;
       }
     }
+  });
 
-    if (typeof Razorpay === 'undefined') {
-      var script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = openRzpModal;
-      script.onerror = function () {
-        if (paymentFailedCard) paymentFailedCard.style.display = 'block';
-      };
-      document.body.appendChild(script);
+  function showUpiPaymentStep(booking) {
+    if (upiBookingIdDisplay) upiBookingIdDisplay.textContent = booking.id;
+    if (upiPassTitle) upiPassTitle.textContent = (booking.passName || booking.pass_name || 'PASS').toUpperCase();
+    var headcount = booking.totalAdmit || booking.total_admit || (booking.admitPerPass ? booking.admitPerPass * booking.quantity : 1);
+    if (upiHeadcountBadge) upiHeadcountBadge.textContent = headcount + ' ' + (headcount > 1 ? 'PEOPLE' : 'PERSON');
+    if (upiAttendeeName) upiAttendeeName.textContent = booking.customerName || booking.customer_name || '';
+    if (upiAttendeePhone) upiAttendeePhone.textContent = booking.phone || '';
+    var amtFormatted = '\u20B9' + (booking.expectedAmount || booking.expected_amount || 0).toLocaleString('en-IN');
+    if (upiAmountToPay) upiAmountToPay.textContent = amtFormatted;
+    if (upiAmountInstruction) upiAmountInstruction.textContent = amtFormatted;
+
+    if (personalUpiQrImage) {
+      personalUpiQrImage.src = window.RAAS_UPI_QR_IMAGE || 'upi-qr.png';
+    }
+    if (upiUtrInput) upiUtrInput.value = '';
+
+    if (bookingFormStep) bookingFormStep.style.display = 'none';
+    if (bookingSubmittedStep) bookingSubmittedStep.style.display = 'none';
+    if (bookingSuccessStep) bookingSuccessStep.style.display = 'none';
+    if (bookingPaymentStep) bookingPaymentStep.style.display = 'block';
+  }
+
+  backToFormFromUpiBtn?.addEventListener('click', function () {
+    if (bookingPaymentStep) bookingPaymentStep.style.display = 'none';
+    if (bookingFormStep) bookingFormStep.style.display = 'block';
+  });
+
+  // STEP 2 -> STEP 2B: Customer submits UPI Reference / UTR
+  upiSubmissionForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    if (!currentActiveBooking) {
+      alert('No active booking found. Please reserve your pass first.');
+      return;
+    }
+
+    var utr = upiUtrInput ? upiUtrInput.value.trim() : '';
+    if (!utr || utr.length < 4) {
+      alert('Please enter your valid 12-digit UPI Transaction / Reference ID (UTR) from your payment app.');
+      return;
+    }
+
+    var submitBtn = document.getElementById('submitUpiPaymentBtn');
+    var origHtml = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>SUBMITTING CLAIM FOR VERIFICATION...</span>';
+    }
+
+    try {
+      var res = await apiPostWithFallback(
+        '/api/booking/submit-payment',
+        '/.netlify/functions/submit-payment',
+        {
+          bookingId: currentActiveBooking.id,
+          upiReference: utr,
+          phone: currentActiveBooking.phone
+        }
+      );
+
+      var sData = res.data;
+      if (!res.ok || !sData || !sData.success) {
+        var errMsg = (sData && sData.message) ? sData.message : 'Unable to submit payment claim. Please try again.';
+        alert(errMsg);
+        return;
+      }
+
+      // If already verified, go straight to pass
+      if (sData.alreadyVerified && sData.tickets) {
+        currentlyGeneratedTickets = sData.tickets;
+        currentActiveTicketIndex = 0;
+        if (bookingPaymentStep) bookingPaymentStep.style.display = 'none';
+        if (bookingSuccessStep) bookingSuccessStep.style.display = 'block';
+        displayConfirmedTicket(0);
+        setupMultiPassSwitcher();
+        return;
+      }
+
+      // Update Step 2B: Confirmation Display
+      if (submittedBookingIdDisplay) submittedBookingIdDisplay.textContent = sData.bookingId || currentActiveBooking.id;
+      if (submittedPassNameDisplay) submittedPassNameDisplay.textContent = (sData.passName || currentActiveBooking.passName || '').toUpperCase();
+      var amtFormatted = '\u20B9' + (sData.expectedAmount || currentActiveBooking.expectedAmount || 0).toLocaleString('en-IN');
+      if (submittedAmountDisplay) submittedAmountDisplay.textContent = amtFormatted;
+      if (submittedUtrDisplay) submittedUtrDisplay.textContent = sData.upiReference || utr;
+
+      if (bookingPaymentStep) bookingPaymentStep.style.display = 'none';
+      if (bookingSubmittedStep) bookingSubmittedStep.style.display = 'block';
+
+    } catch (err) {
+      console.error('Payment claim submission error:', err);
+      alert('Network error submitting payment claim. Please check your connection.');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = origHtml;
+      }
+    }
+  });
+
+  closeSubmittedBookingBtn?.addEventListener('click', closeBookingModal);
+
+  checkSubmittedTicketBtn?.addEventListener('click', function () {
+    closeBookingModal();
+    if (currentActiveBooking) {
+      openCheckTicketModal(currentActiveBooking.id, currentActiveBooking.phone);
     } else {
-      openRzpModal();
+      openCheckTicketModal();
+    }
+  });
+
+  // STEP 4: CHECK / RETRIEVE TICKET MODAL CONTROLLER
+  function openCheckTicketModal(prefillBookingId, prefillPhone) {
+    if (lookupBookingIdInput && prefillBookingId) lookupBookingIdInput.value = prefillBookingId;
+    if (lookupPhoneInput && prefillPhone) lookupPhoneInput.value = prefillPhone;
+    if (lookupResultContainer) {
+      lookupResultContainer.style.display = 'none';
+      lookupResultContainer.innerHTML = '';
+    }
+    checkTicketModal?.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    if (prefillBookingId && prefillPhone) {
+      checkTicketForm?.dispatchEvent(new Event('submit'));
     }
   }
 
-  proceedToPaymentBtn?.addEventListener('click', launchRazorpayStandardCheckout);
-  document.getElementById('retryAfterCancelBtn')?.addEventListener('click', launchRazorpayStandardCheckout);
-  document.getElementById('retryAfterFailBtn')?.addEventListener('click', launchRazorpayStandardCheckout);
-  document.getElementById('retryAfterConfigBtn')?.addEventListener('click', launchRazorpayStandardCheckout);
+  function closeCheckTicketModal() {
+    checkTicketModal?.classList.remove('active');
+    document.body.style.overflow = '';
+  }
+
+  checkTicketModalCloseBtn?.addEventListener('click', closeCheckTicketModal);
+  document.getElementById('navCheckTicketBtn')?.addEventListener('click', function () { openCheckTicketModal(); });
+  document.getElementById('dCheckTicketBtn')?.addEventListener('click', function () {
+    closeDrawer();
+    openCheckTicketModal();
+  });
+  document.getElementById('footerCheckTicketTrigger')?.addEventListener('click', function (e) {
+    e.preventDefault();
+    openCheckTicketModal();
+  });
+
+  checkTicketForm?.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var bId = lookupBookingIdInput ? lookupBookingIdInput.value.trim().toUpperCase() : '';
+    var phone = lookupPhoneInput ? lookupPhoneInput.value.trim() : '';
+
+    if (!bId || !phone) {
+      alert('Please enter both your Booking ID and registered WhatsApp number.');
+      return;
+    }
+
+    var submitBtn = document.getElementById('submitCheckTicketBtn');
+    var origHtml = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>CHECKING DATABASE...</span>';
+    }
+
+    if (lookupResultContainer) {
+      lookupResultContainer.style.display = 'block';
+      lookupResultContainer.innerHTML = '<div style="text-align:center; padding:18px; color:rgba(255,255,255,0.7); font-size:0.85rem;"><span class="live-dot-pulse" style="display:inline-block; vertical-align:middle; margin-right:8px;"></span> Checking verification status in central database...</div>';
+    }
+
+    try {
+      var res = await apiPostWithFallback(
+        '/api/ticket/retrieve',
+        '/.netlify/functions/retrieve-ticket',
+        { bookingId: bId, phone: phone }
+      );
+
+      var data = res.data;
+      if (!res.ok || !data || !data.success) {
+        var errMsg = (data && data.message) ? data.message : 'Booking not found or registered phone number does not match.';
+        renderLookupError(errMsg);
+        return;
+      }
+
+      renderLookupSuccess(data);
+
+    } catch (err) {
+      console.error('Check ticket error:', err);
+      renderLookupError('Network error connecting to verification database. Please try again.');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = origHtml;
+      }
+    }
+  });
+
+  function renderLookupError(msg) {
+    if (!lookupResultContainer) return;
+    lookupResultContainer.style.display = 'block';
+    lookupResultContainer.innerHTML = [
+      '<div class="status-result-card status-rejected">',
+      '  <span class="status-card-badge badge-err">&times; NOT FOUND / MISMATCH</span>',
+      '  <h5 style="color:#f87171; margin-top:8px;">VERIFICATION LOOKUP FAILED</h5>',
+      '  <p style="margin: 8px 0 0; color: #fca5a5; font-size:0.85rem;">' + msg + '</p>',
+      '</div>'
+    ].join('');
+  }
+
+  function renderLookupSuccess(data) {
+    if (!lookupResultContainer) return;
+    lookupResultContainer.style.display = 'block';
+    var booking = data.booking || {};
+    var pStatus = booking.payment_status || 'AWAITING_PAYMENT';
+    var amtFormatted = '\u20B9' + (booking.expected_amount || 0).toLocaleString('en-IN');
+
+    if (pStatus === 'AWAITING_PAYMENT') {
+      lookupResultContainer.innerHTML = [
+        '<div class="status-result-card status-pending">',
+        '  <span class="status-card-badge badge-warn">&#9888; AWAITING PAYMENT</span>',
+        '  <h5 style="color:#fde047; margin-top:8px;">BOOKING FOUND &mdash; PAYMENT PENDING</h5>',
+        '  <p style="font-size:0.85rem; color:#e2e8f0;">Booking <strong class="code-font text-gold">' + booking.id + '</strong> (' + booking.pass_name + ') is awaiting UPI payment of <strong>' + amtFormatted + '</strong>.</p>',
+        '  <p style="color:#fde047; font-size:0.8rem;">Please scan the UPI QR code and submit your 12-digit UTR to complete your booking.</p>',
+        '  <button type="button" class="btn btn-gold-shimmer btn-sm btn-block" id="lookupPayNowBtn" style="margin-top:10px;">',
+        '    <span>PAY NOW VIA UPI &rarr;</span>',
+        '  </button>',
+        '</div>'
+      ].join('');
+
+      document.getElementById('lookupPayNowBtn')?.addEventListener('click', function () {
+        closeCheckTicketModal();
+        currentActiveBooking = {
+          id: booking.id,
+          passName: booking.pass_name,
+          customerName: booking.customer_name,
+          phone: booking.phone,
+          expectedAmount: booking.expected_amount,
+          totalAdmit: booking.total_admit
+        };
+        showUpiPaymentStep(currentActiveBooking);
+        bookingModal?.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      });
+
+    } else if (pStatus === 'PENDING_VERIFICATION') {
+      lookupResultContainer.innerHTML = [
+        '<div class="status-result-card status-pending">',
+        '  <span class="status-card-badge badge-warn">&#8987; PENDING VERIFICATION</span>',
+        '  <h5 style="color:#fde047; margin-top:8px;">PAYMENT CLAIM UNDER REVIEW</h5>',
+        '  <p style="font-size:0.85rem; color:#e2e8f0;">Your payment claim of <strong>' + amtFormatted + '</strong> for Booking <strong class="code-font text-gold">' + booking.id + '</strong> is awaiting manual verification by the organizer.</p>',
+        '  <div style="background:rgba(0,0,0,0.4); padding:8px 12px; border-radius:6px; margin:8px 0; font-size:0.8rem; text-align:left; color:#cbd5e1;">',
+        '    <div>&bull; Pass: <strong>' + booking.pass_name + ' &times; ' + booking.quantity + '</strong></div>',
+        '    <div>&bull; Reference (UTR): <strong class="code-font text-gold">' + (booking.upi_reference || 'Submitted') + '</strong></div>',
+        '  </div>',
+        '  <p style="color:#cbd5e1; font-size:0.78rem;">Your official pass and entry QR will become available here immediately upon organizer approval.</p>',
+        '</div>'
+      ].join('');
+
+    } else if (pStatus === 'PAYMENT_REJECTED') {
+      lookupResultContainer.innerHTML = [
+        '<div class="status-result-card status-rejected">',
+        '  <span class="status-card-badge badge-err">&times; PAYMENT NOT VERIFIED</span>',
+        '  <h5 style="color:#f87171; margin-top:8px;">PAYMENT CLAIM REJECTED</h5>',
+        '  <p style="font-size:0.85rem; color:#e2e8f0;">Your payment for Booking <strong class="code-font">' + booking.id + '</strong> could not be verified in the organizer bank statement.</p>',
+        '  <p style="color:#fca5a5; font-size:0.8rem; font-style:italic;">Reason: ' + (booking.rejection_reason || 'UTR could not be matched') + '</p>',
+        '  <p style="color:#e2e8f0; font-size:0.75rem;">If you believe this is an error, please reach out to the event organizers with your UPI transaction receipt.</p>',
+        '</div>'
+      ].join('');
+
+    } else if (pStatus === 'PAYMENT_VERIFIED') {
+      var tickets = data.tickets || [];
+      lookupResultContainer.innerHTML = [
+        '<div class="status-result-card status-verified">',
+        '  <span class="status-card-badge badge-ok">&check; PAYMENT VERIFIED</span>',
+        '  <h5 style="color:#4ade80; margin-top:8px;">OFFICIAL PASS ISSUED</h5>',
+        '  <p style="font-size:0.85rem; color:#e2e8f0;">Payment of <strong>' + amtFormatted + '</strong> verified! Your official entry pass is active.</p>',
+        '  <div style="background:rgba(0,0,0,0.4); padding:8px 12px; border-radius:6px; margin:8px 0; font-size:0.8rem; text-align:left; color:#cbd5e1;">',
+        '    <div>&bull; Attendee: <strong>' + booking.customer_name + '</strong></div>',
+        '    <div>&bull; Pass: <strong>' + booking.pass_name + ' (' + booking.total_admit + ' Pax)</strong></div>',
+        '    <div>&bull; Status: <strong style="color:#4ade80;">ACTIVE PASS</strong></div>',
+        '  </div>',
+        '  <button type="button" class="btn btn-gold-shimmer btn-sm btn-block" id="lookupViewTicketBtn" style="margin-top:10px;">',
+        '    <span>VIEW OFFICIAL DIGITAL PASS &amp; QR &rarr;</span>',
+        '  </button>',
+        '</div>'
+      ].join('');
+
+      document.getElementById('lookupViewTicketBtn')?.addEventListener('click', function () {
+        closeCheckTicketModal();
+        currentlyGeneratedTickets = tickets.map(function (t) {
+          return {
+            id: t.id,
+            verifyToken: t.verify_token,
+            verifyUrl: '#verify?token=' + t.verify_token,
+            name: booking.customer_name,
+            passType: booking.pass_name,
+            admitCount: booking.admit_per_pass || 1,
+            amount: booking.unit_price || booking.expected_amount,
+            paymentStatus: 'PAID',
+            status: t.ticket_status || 'ACTIVE',
+            paymentTxnId: booking.upi_reference || ('REF-' + booking.id)
+          };
+        });
+        currentActiveTicketIndex = 0;
+        if (bookingFormStep) bookingFormStep.style.display = 'none';
+        if (bookingPaymentStep) bookingPaymentStep.style.display = 'none';
+        if (bookingSubmittedStep) bookingSubmittedStep.style.display = 'none';
+        if (bookingSuccessStep) bookingSuccessStep.style.display = 'block';
+        displayConfirmedTicket(0);
+        setupMultiPassSwitcher();
+        bookingModal?.classList.add('active');
+        document.body.style.overflow = 'hidden';
+      });
+    }
+  }
 
   function displayConfirmedTicket(index) {
     if (!currentlyGeneratedTickets || currentlyGeneratedTickets.length === 0) return;
@@ -1504,7 +1616,7 @@
     if (verifyInvalidCard) verifyInvalidCard.style.display = 'none';
   }
 
-  function verifyTicketCode(query) {
+  async function verifyTicketCode(query) {
     if (!hasStaffSession()) {
       openStaffPortal();
       return;
@@ -1513,33 +1625,72 @@
     resetVerificationDisplay();
     currentlyInspectedTicketId = null;
 
-    var ticket = EventDB.lookupTicket(query);
-
-    if (!ticket) {
-      if (verifyInvalidCard) {
-        verifyInvalidCard.style.display = 'block';
-        var invalidNote = document.getElementById('vInvalidQueryText');
-        if (invalidNote) invalidNote.textContent = 'Queried Code: "' + query + '"';
-      }
-      return;
+    var cleaned = String(query || '').trim();
+    if (cleaned.includes('token=')) {
+      var m = cleaned.match(/token=([a-zA-Z0-9_\-]+)/);
+      if (m && m[1]) cleaned = m[1];
+    } else if (cleaned.includes('#verify')) {
+      var m2 = cleaned.match(/#verify\?token=([a-zA-Z0-9_\-]+)/);
+      if (m2 && m2[1]) cleaned = m2[1];
     }
 
-    if (ticket.status === 'REDEEMED' || ticket.status === 'CHECKED_IN') {
-      if (verifyUsedCard) {
-        verifyUsedCard.style.display = 'block';
-        var vUsedName = document.getElementById('vUsedName');
-        var vUsedTime = document.getElementById('vUsedTime');
-        var vUsedGate = document.getElementById('vUsedGate');
-        var vUsedCode = document.getElementById('vUsedCode');
-        if (vUsedName) vUsedName.textContent = ticket.name;
-        if (vUsedTime) vUsedTime.textContent = ticket.checkedInAt || 'Earlier Today';
-        if (vUsedGate) vUsedGate.textContent = ticket.checkedInBy || 'Gate 1 Staff';
-        if (vUsedCode) vUsedCode.textContent = ticket.id;
-      }
-      return;
-    }
+    try {
+      var res = await apiPostWithFallback(
+        '/api/ticket/inspect',
+        '/.netlify/functions/verify-ticket',
+        { token: cleaned }
+      );
 
-    currentlyInspectedTicketId = ticket.id;
+      var data = res.data;
+      if (!res.ok || !data || !data.success) {
+        if (data && data.reason === 'ALREADY_REDEEMED' && data.ticket) {
+          showStaffAlreadyUsed(data.ticket);
+        } else {
+          showStaffInvalid(data ? (data.message || data.reason || 'Ticket Not Found') : 'Ticket Not Found in Database', cleaned);
+        }
+        return;
+      }
+
+      var ticket = data.ticket;
+      currentlyInspectedTicketId = ticket.verify_token || ticket.id;
+
+      if (ticket.ticket_status === 'REDEEMED' || ticket.status === 'REDEEMED') {
+        showStaffAlreadyUsed(ticket);
+        return;
+      }
+
+      showStaffValid(ticket);
+
+    } catch (err) {
+      console.error('Staff inspect error:', err);
+      var localT = EventDB.lookupTicket(cleaned);
+      if (localT) {
+        currentlyInspectedTicketId = localT.id;
+        if (localT.status === 'REDEEMED' || localT.status === 'CHECKED_IN') {
+          showStaffAlreadyUsed({
+            customer_name: localT.name,
+            checked_in_at: localT.checkedInAt,
+            checked_in_by: localT.checkedInBy,
+            id: localT.id
+          });
+        } else {
+          showStaffValid({
+            id: localT.id,
+            customer_name: localT.name,
+            pass_name: localT.passType,
+            admit_count: localT.admitCount,
+            amount: localT.amount,
+            payment_status: localT.paymentStatus,
+            ticket_status: localT.status
+          });
+        }
+      } else {
+        showStaffInvalid('Network error inspecting ticket against database.', cleaned);
+      }
+    }
+  }
+
+  function showStaffValid(ticket) {
     if (verifyValidCard) {
       verifyValidCard.style.display = 'block';
       var vCode = document.getElementById('vCode');
@@ -1551,30 +1702,88 @@
       var vTicketStatus = document.getElementById('vTicketStatus');
 
       if (vCode) vCode.textContent = ticket.id;
-      if (vName) vName.textContent = ticket.name;
-      if (vCategory) vCategory.textContent = ticket.passType;
-      if (vAdmitCount) vAdmitCount.textContent = ticket.admitCount + ' ' + (ticket.admitCount > 1 ? 'PEOPLE' : 'PERSON');
-      if (vAmountPaid) vAmountPaid.textContent = '\u20B9' + ticket.amount;
-      if (vPayStatus) vPayStatus.textContent = ticket.paymentStatus || 'PAID';
-      if (vTicketStatus) vTicketStatus.textContent = ticket.status || 'ACTIVE';
+      if (vName) vName.textContent = ticket.customer_name || ticket.name || 'Attendee';
+      if (vCategory) vCategory.textContent = ticket.pass_name || ticket.passType || 'Pass';
+      var headcount = ticket.admit_count || ticket.admitCount || 1;
+      if (vAdmitCount) vAdmitCount.textContent = headcount + ' ' + (headcount > 1 ? 'PEOPLE' : 'PERSON');
+      if (vAmountPaid) vAmountPaid.textContent = '\u20B9' + (ticket.amount || ticket.unit_price || 0);
+      if (vPayStatus) vPayStatus.textContent = ticket.payment_status || 'PAID';
+      if (vTicketStatus) vTicketStatus.textContent = ticket.ticket_status || ticket.status || 'ACTIVE';
 
       if (admitTicketBtn) {
         admitTicketBtn.disabled = false;
-        admitTicketBtn.innerHTML = '<span>\u2713 ADMIT & CLOSE TICKET</span>';
+        admitTicketBtn.innerHTML = '<span>\u2713 ADMIT &amp; CLOSE TICKET</span>';
       }
     }
   }
 
-  admitTicketBtn?.addEventListener('click', function () {
-    if (!currentlyInspectedTicketId) return;
-    var res = EventDB.admitTicket(currentlyInspectedTicketId, 'Gate 1 Staff');
+  function showStaffAlreadyUsed(ticket) {
+    if (verifyUsedCard) {
+      verifyUsedCard.style.display = 'block';
+      var vUsedName = document.getElementById('vUsedName');
+      var vUsedTime = document.getElementById('vUsedTime');
+      var vUsedGate = document.getElementById('vUsedGate');
+      var vUsedCode = document.getElementById('vUsedCode');
 
-    if (res.success) {
-      admitTicketBtn.disabled = true;
-      admitTicketBtn.innerHTML = '<span>\u2713 ADMITTED & REDEEMED (GATE 1)</span>';
-      alert('\u2713 Ticket ' + currentlyInspectedTicketId + ' Admitted & Closed successfully! Duplicate entry is now blocked.');
-    } else if (res.reason === 'ALREADY_USED') {
-      verifyTicketCode(currentlyInspectedTicketId);
+      if (vUsedName) vUsedName.textContent = ticket.customer_name || ticket.name || 'Attendee';
+      if (vUsedTime) vUsedTime.textContent = ticket.checked_in_at ? new Date(ticket.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) : (ticket.checkedInAt || 'Earlier Today');
+      if (vUsedGate) vUsedGate.textContent = ticket.checked_in_by || ticket.checkedInBy || 'Gate 1 Staff';
+      if (vUsedCode) vUsedCode.textContent = ticket.id || '';
+    }
+  }
+
+  function showStaffInvalid(reason, query) {
+    if (verifyInvalidCard) {
+      verifyInvalidCard.style.display = 'block';
+      var invalidNote = document.getElementById('vInvalidQueryText');
+      if (invalidNote) invalidNote.textContent = 'Query: "' + query + '" \u2014 ' + reason;
+    }
+  }
+
+  admitTicketBtn?.addEventListener('click', async function () {
+    if (!currentlyInspectedTicketId) return;
+
+    var origHtml = admitTicketBtn.innerHTML;
+    admitTicketBtn.disabled = true;
+    admitTicketBtn.innerHTML = '<span>ADMITTING AT GATE...</span>';
+
+    try {
+      var res = await apiPostWithFallback(
+        '/api/ticket/redeem',
+        '/.netlify/functions/redeem-ticket',
+        {
+          token: currentlyInspectedTicketId,
+          staffName: 'Gate 1 Staff'
+        }
+      );
+
+      var data = res.data;
+      if (res.ok && data && data.success) {
+        admitTicketBtn.disabled = true;
+        admitTicketBtn.innerHTML = '<span>\u2713 ADMITTED &amp; REDEEMED (GATE 1)</span>';
+        alert('\u2713 Ticket ' + (data.ticket?.id || currentlyInspectedTicketId) + ' Admitted & Closed successfully in central database! Duplicate entry is now blocked.');
+        EventDB.admitTicket(currentlyInspectedTicketId, 'Gate 1 Staff');
+      } else {
+        admitTicketBtn.disabled = false;
+        admitTicketBtn.innerHTML = origHtml;
+        if (data && data.reason === 'ALREADY_USED') {
+          showStaffAlreadyUsed(data.ticket || {});
+        } else {
+          alert('\u2715 Admission failed: ' + (data ? (data.message || data.reason) : 'Database error'));
+        }
+      }
+    } catch (err) {
+      console.error('Admission error:', err);
+      var localRes = EventDB.admitTicket(currentlyInspectedTicketId, 'Gate 1 Staff');
+      if (localRes.success) {
+        admitTicketBtn.disabled = true;
+        admitTicketBtn.innerHTML = '<span>\u2713 ADMITTED &amp; REDEEMED (GATE 1)</span>';
+        alert('\u2713 Ticket ' + currentlyInspectedTicketId + ' Admitted & Closed locally.');
+      } else {
+        admitTicketBtn.disabled = false;
+        admitTicketBtn.innerHTML = origHtml;
+        alert('Network error communicating with gate server.');
+      }
     }
   });
 
@@ -1590,6 +1799,23 @@
     }
   });
 
+  var cameraScanTimer = null;
+  async function checkVideoFrameForQr() {
+    if (!activeCameraStream || !qrScannerVideo) return;
+    if ('BarcodeDetector' in window) {
+      try {
+        var detector = new BarcodeDetector({ formats: ['qr_code'] });
+        var barcodes = await detector.detect(qrScannerVideo);
+        if (barcodes.length > 0 && barcodes[0].rawValue) {
+          stopCamera();
+          verifyTicketCode(barcodes[0].rawValue);
+          return;
+        }
+      } catch (e) {}
+    }
+    cameraScanTimer = requestAnimationFrame(checkVideoFrameForQr);
+  }
+
   async function startCamera() {
     try {
       var stream = await navigator.mediaDevices.getUserMedia({
@@ -1603,12 +1829,17 @@
       }
       if (scannerInactiveView) scannerInactiveView.style.display = 'none';
       if (scannerActiveView) scannerActiveView.style.display = 'block';
+      cameraScanTimer = requestAnimationFrame(checkVideoFrameForQr);
     } catch (err) {
       alert('Camera access unavailable or declined. Please use Manual Code Lookup.');
     }
   }
 
   function stopCamera() {
+    if (cameraScanTimer) {
+      cancelAnimationFrame(cameraScanTimer);
+      cameraScanTimer = null;
+    }
     if (activeCameraStream) {
       activeCameraStream.getTracks().forEach(function (track) { track.stop(); });
       activeCameraStream = null;
@@ -1674,48 +1905,88 @@
     adminPasswordInput.type = adminPasswordInput.type === 'password' ? 'text' : 'password';
   });
 
+  function getAdminToken() {
+    return sessionStorage.getItem('raas_admin_token') || sessionStorage.getItem('raas_admin_session') || '';
+  }
+
   adminLoginForm?.addEventListener('submit', async function (e) {
     e.preventDefault();
-    var pass = adminPasswordInput ? adminPasswordInput.value : '';
-    if (!pass) {
-      if (adminAuthFeedback) {
-        adminAuthFeedback.innerHTML = '<span>\u2715 INCORRECT PASSWORD<br>ACCESS DENIED</span>';
-        adminAuthFeedback.className = 'auth-feedback-box error';
-        adminAuthFeedback.style.display = 'block';
-      }
-      return;
+    var pass = adminPasswordInput ? adminPasswordInput.value.trim() : '';
+    if (!pass) return;
+
+    var submitBtn = document.getElementById('adminLoginSubmitBtn');
+    var origHtml = submitBtn ? submitBtn.innerHTML : '';
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<span>AUTHENTICATING...</span>';
     }
 
-    var passHash = await sha256(pass);
+    try {
+      var res = await apiPostWithFallback(
+        '/api/admin/login',
+        '/.netlify/functions/admin-auth',
+        { password: pass }
+      );
 
-    // Cryptographic match against exact case-sensitive admin hash
-    if (passHash === ADMIN_SECURE_AUTH_HASH) {
-      if (adminAuthFeedback) {
-        adminAuthFeedback.innerHTML = '<span>\u2713 ACCESS GRANTED</span>';
-        adminAuthFeedback.className = 'auth-feedback-box success';
-        adminAuthFeedback.style.display = 'block';
+      var data = res.data;
+      if (res.ok && data && data.success) {
+        if (adminAuthFeedback) {
+          adminAuthFeedback.innerHTML = '<span>\u2713 ACCESS GRANTED</span>';
+          adminAuthFeedback.className = 'auth-feedback-box success';
+          adminAuthFeedback.style.display = 'block';
+        }
+        var token = data.token || ('adm_tok_' + Date.now());
+        sessionStorage.setItem('raas_admin_token', token);
+        sessionStorage.setItem('raas_admin_session', token);
+
+        setTimeout(function () {
+          if (adminLoginView) adminLoginView.style.display = 'none';
+          if (adminDashboardView) adminDashboardView.style.display = 'block';
+          refreshAdminDashboard();
+        }, 350);
+      } else {
+        // Fallback SHA-256 for local dev or offline mode
+        var hash = await sha256(pass);
+        if (hash === ADMIN_SECURE_AUTH_HASH) {
+          sessionStorage.setItem('raas_admin_token', 'adm_offline_' + Date.now());
+          sessionStorage.setItem('raas_admin_session', 'adm_offline_' + Date.now());
+          if (adminLoginView) adminLoginView.style.display = 'none';
+          if (adminDashboardView) adminDashboardView.style.display = 'block';
+          refreshAdminDashboard();
+          return;
+        }
+
+        if (adminAuthFeedback) {
+          adminAuthFeedback.innerHTML = '<span>\u2715 INCORRECT PASSWORD<br>ACCESS DENIED</span>';
+          adminAuthFeedback.className = 'auth-feedback-box error';
+          adminAuthFeedback.style.display = 'block';
+        }
+        adminPasswordInput?.classList.add('shake');
+        setTimeout(function () { adminPasswordInput?.classList.remove('shake'); }, 500);
+        if (adminPasswordInput) adminPasswordInput.value = '';
       }
-      var sessionToken = 'admin_session_' + Date.now() + '_' + Math.random().toString(36).substring(2);
-      sessionStorage.setItem('raas_admin_session', sessionToken);
-
-      setTimeout(function () {
+    } catch (err) {
+      console.error('Admin login error:', err);
+      var hash = await sha256(pass);
+      if (hash === ADMIN_SECURE_AUTH_HASH) {
+        sessionStorage.setItem('raas_admin_token', 'adm_offline_' + Date.now());
+        sessionStorage.setItem('raas_admin_session', 'adm_offline_' + Date.now());
         if (adminLoginView) adminLoginView.style.display = 'none';
         if (adminDashboardView) adminDashboardView.style.display = 'block';
         refreshAdminDashboard();
-      }, 350);
-    } else {
-      if (adminAuthFeedback) {
-        adminAuthFeedback.innerHTML = '<span>\u2715 INCORRECT PASSWORD<br>ACCESS DENIED</span>';
-        adminAuthFeedback.className = 'auth-feedback-box error';
-        adminAuthFeedback.style.display = 'block';
+        return;
       }
-      adminPasswordInput?.classList.add('shake');
-      setTimeout(function () { adminPasswordInput?.classList.remove('shake'); }, 500);
-      if (adminPasswordInput) adminPasswordInput.value = '';
+      alert('Network error authenticating admin. Please check connection.');
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = origHtml;
+      }
     }
   });
 
   adminSignoutBtn?.addEventListener('click', function () {
+    sessionStorage.removeItem('raas_admin_token');
     sessionStorage.removeItem('raas_admin_session');
     if (window.history && window.history.replaceState) {
       window.history.replaceState(null, '', window.location.pathname);
@@ -1733,8 +2004,60 @@
     }
   });
 
-  function refreshAdminDashboard() {
-    var analytics = EventDB.getSalesAnalytics();
+  var cachedAdminData = null;
+  var pendingActionBookingId = null;
+  var pendingActionAmount = 0;
+
+  async function refreshAdminDashboard() {
+    var token = getAdminToken();
+    var refreshBtn = document.getElementById('refreshAdminDataBtn');
+    if (refreshBtn) refreshBtn.classList.add('spinning');
+
+    try {
+      var res = await fetch(resolveApiUrl('/api/admin/bookings'), {
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'X-Admin-Token': token
+        }
+      });
+
+      if (res.status === 404) {
+        res = await fetch(resolveApiUrl('/.netlify/functions/admin-bookings'), {
+          headers: {
+            'Authorization': 'Bearer ' + token,
+            'X-Admin-Token': token
+          }
+        });
+      }
+
+      var data = await res.json();
+      if (res.ok && data && data.success) {
+        cachedAdminData = data;
+        renderAdminDashboardData(data);
+      } else {
+        console.warn('Could not fetch admin data from backend:', data?.message);
+        var localAnalytics = EventDB.getSalesAnalytics();
+        renderAdminDashboardFallback(localAnalytics);
+      }
+    } catch (err) {
+      console.error('Admin refresh error:', err);
+      var localAnalytics = EventDB.getSalesAnalytics();
+      renderAdminDashboardFallback(localAnalytics);
+    } finally {
+      if (refreshBtn) refreshBtn.classList.remove('spinning');
+    }
+  }
+
+  function renderAdminDashboardData(data) {
+    var stats = data.stats || {};
+    var pendingBookings = data.pendingBookings || [];
+    var allBookings = data.allBookings || [];
+
+    // Top metrics (strictly verified revenue only)
+    var totalRevenue = stats.total_revenue || 0;
+    var paidBookings = stats.paid_bookings || 0;
+    var totalPeople = stats.total_attendees || 0;
+    var checkedIn = stats.checked_in || 0;
 
     var cmdTotalRevenue = document.getElementById('cmdTotalRevenue');
     var cmdPaidBookings = document.getElementById('cmdPaidBookings');
@@ -1742,121 +2065,373 @@
     var cmdCheckedIn = document.getElementById('cmdCheckedIn');
     var cmdCheckinPercentage = document.getElementById('cmdCheckinPercentage');
 
-    if (cmdTotalRevenue) cmdTotalRevenue.textContent = '\u20B9' + analytics.totalRevenue.toLocaleString('en-IN');
-    if (cmdPaidBookings) cmdPaidBookings.textContent = analytics.totalBookings;
-    if (cmdTotalPeople) cmdTotalPeople.textContent = analytics.totalPeople;
-    if (cmdCheckedIn) cmdCheckedIn.textContent = analytics.checkedIn;
-
-    var pct = analytics.totalPeople > 0 ? Math.round((analytics.checkedIn / analytics.totalPeople) * 100) : 0;
+    if (cmdTotalRevenue) cmdTotalRevenue.textContent = '\u20B9' + totalRevenue.toLocaleString('en-IN');
+    if (cmdPaidBookings) cmdPaidBookings.textContent = paidBookings;
+    if (cmdTotalPeople) cmdTotalPeople.textContent = totalPeople;
+    if (cmdCheckedIn) cmdCheckedIn.textContent = checkedIn;
+    var pct = totalPeople > 0 ? Math.round((checkedIn / totalPeople) * 100) : 0;
     if (cmdCheckinPercentage) cmdCheckinPercentage.textContent = pct + '% Admitted';
 
-    // Live PASS SALES Breakdown Rows
+    // Live PASS SALES Breakdown
+    var breakdown = stats.tier_breakdown || {};
+    var stag = breakdown.stag || { bookings: 0, people: 0, revenue: 0 };
+    var couple = breakdown.couple || { bookings: 0, people: 0, revenue: 0 };
+    var group = breakdown.group || { bookings: 0, people: 0, revenue: 0 };
+
     var sStagB = document.getElementById('salesStagBookings');
     var sStagP = document.getElementById('salesStagPeople');
     var sStagR = document.getElementById('salesStagRevenue');
+    if (sStagB) sStagB.textContent = stag.bookings;
+    if (sStagP) sStagP.textContent = stag.people;
+    if (sStagR) sStagR.textContent = '\u20B9' + (stag.revenue || 0).toLocaleString('en-IN');
 
     var sCoupleB = document.getElementById('salesCoupleBookings');
     var sCoupleP = document.getElementById('salesCouplePeople');
     var sCoupleR = document.getElementById('salesCoupleRevenue');
+    if (sCoupleB) sCoupleB.textContent = couple.bookings;
+    if (sCoupleP) sCoupleP.textContent = couple.people;
+    if (sCoupleR) sCoupleR.textContent = '\u20B9' + (couple.revenue || 0).toLocaleString('en-IN');
 
     var sGroupB = document.getElementById('salesGroupBookings');
     var sGroupP = document.getElementById('salesGroupPeople');
     var sGroupR = document.getElementById('salesGroupRevenue');
+    if (sGroupB) sGroupB.textContent = group.bookings;
+    if (sGroupP) sGroupP.textContent = group.people;
+    if (sGroupR) sGroupR.textContent = '\u20B9' + (group.revenue || 0).toLocaleString('en-IN');
 
     var sTotB = document.getElementById('salesTotalBookings');
     var sTotP = document.getElementById('salesTotalPeople');
     var sTotR = document.getElementById('salesTotalRevenue');
+    if (sTotB) sTotB.textContent = paidBookings;
+    if (sTotP) sTotP.textContent = totalPeople;
+    if (sTotR) sTotR.textContent = '\u20B9' + totalRevenue.toLocaleString('en-IN');
 
-    if (sStagB) sStagB.textContent = analytics.stag.bookings;
-    if (sStagP) sStagP.textContent = analytics.stag.people;
-    if (sStagR) sStagR.textContent = '\u20B9' + analytics.stag.revenue.toLocaleString('en-IN');
-
-    if (sCoupleB) sCoupleB.textContent = analytics.couple.bookings;
-    if (sCoupleP) sCoupleP.textContent = analytics.couple.people;
-    if (sCoupleR) sCoupleR.textContent = '\u20B9' + analytics.couple.revenue.toLocaleString('en-IN');
-
-    if (sGroupB) sGroupB.textContent = analytics.group.bookings;
-    if (sGroupP) sGroupP.textContent = analytics.group.people;
-    if (sGroupR) sGroupR.textContent = '\u20B9' + analytics.group.revenue.toLocaleString('en-IN');
-
-    if (sTotB) sTotB.textContent = analytics.totalBookings;
-    if (sTotP) sTotP.textContent = analytics.totalPeople;
-    if (sTotR) sTotR.textContent = '\u20B9' + analytics.totalRevenue.toLocaleString('en-IN');
-
-    renderAdminRosterTable();
+    renderAdminPendingQueue(pendingBookings);
+    renderAdminRosterFromBookings(allBookings);
   }
 
-  function renderAdminRosterTable() {
-    if (!adminTableBody) return;
-    var tickets = EventDB.getAllTickets();
-    var query = adminTicketSearchInput?.value.trim().toLowerCase() || '';
+  function renderAdminDashboardFallback(analytics) {
+    var cmdTotalRevenue = document.getElementById('cmdTotalRevenue');
+    var cmdPaidBookings = document.getElementById('cmdPaidBookings');
+    var cmdTotalPeople = document.getElementById('cmdTotalPeople');
+    var cmdCheckedIn = document.getElementById('cmdCheckedIn');
+    var cmdCheckinPercentage = document.getElementById('cmdCheckinPercentage');
 
-    var filtered = tickets.filter(function (t) {
+    if (cmdTotalRevenue) cmdTotalRevenue.textContent = '\u20B9' + (analytics.totalRevenue || 0).toLocaleString('en-IN');
+    if (cmdPaidBookings) cmdPaidBookings.textContent = analytics.totalBookings || 0;
+    if (cmdTotalPeople) cmdTotalPeople.textContent = analytics.totalPeople || 0;
+    if (cmdCheckedIn) cmdCheckedIn.textContent = analytics.checkedIn || 0;
+    var pct = (analytics.totalPeople > 0) ? Math.round(((analytics.checkedIn || 0) / analytics.totalPeople) * 100) : 0;
+    if (cmdCheckinPercentage) cmdCheckinPercentage.textContent = pct + '% Admitted';
+
+    var sStagB = document.getElementById('salesStagBookings');
+    var sStagP = document.getElementById('salesStagPeople');
+    var sStagR = document.getElementById('salesStagRevenue');
+    if (sStagB) sStagB.textContent = analytics.stag?.bookings || 0;
+    if (sStagP) sStagP.textContent = analytics.stag?.people || 0;
+    if (sStagR) sStagR.textContent = '\u20B9' + (analytics.stag?.revenue || 0).toLocaleString('en-IN');
+
+    var sCoupleB = document.getElementById('salesCoupleBookings');
+    var sCoupleP = document.getElementById('salesCouplePeople');
+    var sCoupleR = document.getElementById('salesCoupleRevenue');
+    if (sCoupleB) sCoupleB.textContent = analytics.couple?.bookings || 0;
+    if (sCoupleP) sCoupleP.textContent = analytics.couple?.people || 0;
+    if (sCoupleR) sCoupleR.textContent = '\u20B9' + (analytics.couple?.revenue || 0).toLocaleString('en-IN');
+
+    var sGroupB = document.getElementById('salesGroupBookings');
+    var sGroupP = document.getElementById('salesGroupPeople');
+    var sGroupR = document.getElementById('salesGroupRevenue');
+    if (sGroupB) sGroupB.textContent = analytics.group?.bookings || 0;
+    if (sGroupP) sGroupP.textContent = analytics.group?.people || 0;
+    if (sGroupR) sGroupR.textContent = '\u20B9' + (analytics.group?.revenue || 0).toLocaleString('en-IN');
+
+    var sTotB = document.getElementById('salesTotalBookings');
+    var sTotP = document.getElementById('salesTotalPeople');
+    var sTotR = document.getElementById('salesTotalRevenue');
+    if (sTotB) sTotB.textContent = analytics.totalBookings || 0;
+    if (sTotP) sTotP.textContent = analytics.totalPeople || 0;
+    if (sTotR) sTotR.textContent = '\u20B9' + (analytics.totalRevenue || 0).toLocaleString('en-IN');
+
+    renderAdminPendingQueue([]);
+  }
+
+  function renderAdminPendingQueue(pendingList) {
+    var container = document.getElementById('adminPendingListContainer');
+    var badge = document.getElementById('adminPendingCountBadge');
+    var alertBanner = document.getElementById('adminPendingAlertBanner');
+    var alertText = document.getElementById('alertPendingNoticeText');
+
+    if (badge) badge.textContent = pendingList.length + ' PENDING';
+
+    if (pendingList.length > 0) {
+      if (alertBanner) alertBanner.style.display = 'flex';
+      if (alertText) alertText.textContent = pendingList.length + ' request' + (pendingList.length > 1 ? 's' : '') + ' awaiting verification';
+    } else {
+      if (alertBanner) alertBanner.style.display = 'none';
+    }
+
+    if (!container) return;
+
+    if (pendingList.length === 0) {
+      container.innerHTML = '<div style="text-align: center; padding: 24px; color: rgba(255, 255, 255, 0.5); font-size: 0.85rem;" id="noPendingRequestsPlaceholder">&check; No pending payment verification requests. All bookings processed.</div>';
+      return;
+    }
+
+    container.innerHTML = '';
+    pendingList.forEach(function (b) {
+      var card = document.createElement('div');
+      card.className = 'pending-item-card';
+      var submittedTime = b.payment_submitted_at ? new Date(b.payment_submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', day: 'numeric', month: 'short' }) : 'Recently';
+
+      card.innerHTML = [
+        '<div class="pending-item-main">',
+        '  <div class="pending-item-header">',
+        '    <span class="pending-bid">' + b.id + '</span>',
+        '    <span class="pending-tier-badge">' + b.pass_name + ' &times; ' + b.quantity + '</span>',
+        '    <span class="pending-amount-badge">\u20B9' + (b.expected_amount || 0).toLocaleString('en-IN') + '</span>',
+        '  </div>',
+        '  <div class="pending-customer-line"><strong>' + b.customer_name + '</strong> &bull; ' + b.phone + (b.email ? ' &bull; ' + b.email : '') + ' &bull; ' + b.total_admit + ' Pax</div>',
+        '  <div class="pending-utr-line">UPI Reference (UTR): <strong>' + (b.upi_reference || 'NOT_SUPPLIED') + '</strong></div>',
+        '  <span class="pending-time">Submitted: ' + submittedTime + '</span>',
+        '</div>',
+        '<div class="pending-actions-wrap">',
+        '  <button type="button" class="btn-approve-payment" data-action="approve" data-id="' + b.id + '">',
+        '    &check; APPROVE PAYMENT',
+        '  </button>',
+        '  <button type="button" class="btn-reject-payment" data-action="reject" data-id="' + b.id + '">',
+        '    &times; REJECT',
+        '  </button>',
+        '</div>'
+      ].join('');
+
+      card.querySelector('button[data-action="approve"]')?.addEventListener('click', function () {
+        openApproveModal(b.id, b.expected_amount);
+      });
+
+      card.querySelector('button[data-action="reject"]')?.addEventListener('click', function () {
+        openRejectModal(b.id);
+      });
+
+      container.appendChild(card);
+    });
+  }
+
+  function openApproveModal(bookingId, amount) {
+    pendingActionBookingId = bookingId;
+    pendingActionAmount = amount;
+    var bIdText = document.getElementById('approveModalBookingId');
+    var amtText = document.getElementById('approveModalAmountText');
+    if (bIdText) bIdText.textContent = bookingId;
+    if (amtText) amtText.textContent = '\u20B9' + (amount || 0).toLocaleString('en-IN');
+    var modal = document.getElementById('adminApproveModal');
+    modal?.classList.add('active');
+  }
+
+  function closeApproveModal() {
+    var modal = document.getElementById('adminApproveModal');
+    modal?.classList.remove('active');
+    pendingActionBookingId = null;
+  }
+
+  document.getElementById('cancelApproveModalBtn')?.addEventListener('click', closeApproveModal);
+
+  document.getElementById('confirmApproveModalBtn')?.addEventListener('click', async function () {
+    if (!pendingActionBookingId) return;
+    var token = getAdminToken();
+    var btn = document.getElementById('confirmApproveModalBtn');
+    var origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>APPROVING &amp; MINTING TICKETS...</span>';
+    }
+
+    try {
+      var res = await apiPostWithFallback(
+        '/api/admin/approve-payment',
+        '/.netlify/functions/admin-approve-payment',
+        { bookingId: pendingActionBookingId },
+        {
+          'Authorization': 'Bearer ' + token,
+          'X-Admin-Token': token
+        }
+      );
+
+      var data = res.data;
+      if (res.ok && data && data.success) {
+        closeApproveModal();
+        alert('\u2713 Payment approved! Official tickets minted for ' + pendingActionBookingId + '.');
+        refreshAdminDashboard();
+      } else {
+        alert('\u2715 Approval failed: ' + (data ? (data.message || data.error) : 'Database error'));
+      }
+    } catch (err) {
+      console.error('Approval request failed:', err);
+      alert('Network error connecting to approval server.');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+    }
+  });
+
+  function openRejectModal(bookingId) {
+    pendingActionBookingId = bookingId;
+    var bIdText = document.getElementById('rejectModalBookingId');
+    if (bIdText) bIdText.textContent = bookingId;
+    var reasonInput = document.getElementById('rejectReasonInput');
+    if (reasonInput) reasonInput.value = '';
+    var modal = document.getElementById('adminRejectModal');
+    modal?.classList.add('active');
+  }
+
+  function closeRejectModal() {
+    var modal = document.getElementById('adminRejectModal');
+    modal?.classList.remove('active');
+    pendingActionBookingId = null;
+  }
+
+  document.getElementById('cancelRejectModalBtn')?.addEventListener('click', closeRejectModal);
+
+  document.getElementById('confirmRejectModalBtn')?.addEventListener('click', async function () {
+    if (!pendingActionBookingId) return;
+    var token = getAdminToken();
+    var reasonInput = document.getElementById('rejectReasonInput');
+    var reason = reasonInput ? reasonInput.value.trim() : '';
+
+    var btn = document.getElementById('confirmRejectModalBtn');
+    var origHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<span>REJECTING...</span>';
+    }
+
+    try {
+      var res = await apiPostWithFallback(
+        '/api/admin/reject-payment',
+        '/.netlify/functions/admin-reject-payment',
+        {
+          bookingId: pendingActionBookingId,
+          reason: reason || 'Payment not found in bank statement'
+        },
+        {
+          'Authorization': 'Bearer ' + token,
+          'X-Admin-Token': token
+        }
+      );
+
+      var data = res.data;
+      if (res.ok && data && data.success) {
+        closeRejectModal();
+        alert('Payment rejected for ' + pendingActionBookingId + '.');
+        refreshAdminDashboard();
+      } else {
+        alert('\u2715 Rejection failed: ' + (data ? (data.message || data.error) : 'Database error'));
+      }
+    } catch (err) {
+      console.error('Rejection request failed:', err);
+      alert('Network error connecting to rejection server.');
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = origHtml;
+      }
+    }
+  });
+
+  document.getElementById('refreshAdminDataBtn')?.addEventListener('click', refreshAdminDashboard);
+  document.getElementById('jumpToPendingBtn')?.addEventListener('click', function () {
+    var el = document.getElementById('adminPendingSection');
+    if (el) el.scrollIntoView({ behavior: 'smooth' });
+  });
+
+  function renderAdminRosterFromBookings(bookingsList) {
+    if (!adminTableBody) return;
+    var query = adminTicketSearchInput ? adminTicketSearchInput.value.trim().toLowerCase() : '';
+
+    var verifiedBookings = bookingsList.filter(function (b) {
+      return b.payment_status === 'PAYMENT_VERIFIED';
+    });
+
+    var filtered = verifiedBookings.filter(function (b) {
       var matchText =
-        (t.id && t.id.toLowerCase().indexOf(query) !== -1) ||
-        (t.name && t.name.toLowerCase().indexOf(query) !== -1) ||
-        (t.phone && t.phone.indexOf(query) !== -1) ||
-        (t.passType && t.passType.toLowerCase().indexOf(query) !== -1);
+        (b.id && b.id.toLowerCase().includes(query)) ||
+        (b.customer_name && b.customer_name.toLowerCase().includes(query)) ||
+        (b.phone && b.phone.includes(query)) ||
+        (b.pass_name && b.pass_name.toLowerCase().includes(query)) ||
+        (b.upi_reference && b.upi_reference.toLowerCase().includes(query));
 
       if (!matchText) return false;
-      if (activeAdminFilter === 'ACTIVE') return t.status === 'ACTIVE' || t.status === 'CONFIRMED';
-      if (activeAdminFilter === 'REDEEMED') return t.status === 'REDEEMED' || t.status === 'CHECKED_IN';
+      if (activeAdminFilter === 'ACTIVE') return b.ticket_status === 'ACTIVE' || !b.ticket_status;
+      if (activeAdminFilter === 'REDEEMED') return b.ticket_status === 'REDEEMED';
       return true;
     });
 
-    var activeCount = tickets.filter(function (t) { return t.status === 'ACTIVE' || t.status === 'CONFIRMED'; }).length;
-    var admittedCount = tickets.filter(function (t) { return t.status === 'REDEEMED' || t.status === 'CHECKED_IN'; }).length;
+    var activeCount = verifiedBookings.filter(function (b) { return b.ticket_status === 'ACTIVE' || !b.ticket_status; }).length;
+    var admittedCount = verifiedBookings.filter(function (b) { return b.ticket_status === 'REDEEMED'; }).length;
 
-    if (filterAllCount) filterAllCount.textContent = tickets.length;
+    if (filterAllCount) filterAllCount.textContent = verifiedBookings.length;
     if (filterPendingCount) filterPendingCount.textContent = activeCount;
     if (filterAdmittedCount) filterAdmittedCount.textContent = admittedCount;
 
     adminTableBody.innerHTML = '';
     if (filtered.length === 0) {
-      adminTableBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:rgba(255,255,255,0.4);">No verified attendees found in database.</td></tr>';
+      adminTableBody.innerHTML = '<tr><td colspan="8" style="text-align:center; padding:24px; color:rgba(255,255,255,0.4);">No verified attendees found matching filters.</td></tr>';
       return;
     }
 
-    filtered.forEach(function (t) {
+    filtered.forEach(function (b) {
       var tr = document.createElement('tr');
-      var isRedeemed = t.status === 'REDEEMED' || t.status === 'CHECKED_IN';
+      var isRedeemed = b.ticket_status === 'REDEEMED';
       tr.innerHTML = [
-        '<td class="code-font gold-text" data-label="Ticket ID">' + t.id + '</td>',
-        '<td data-label="Attendee"><strong>' + t.name + '</strong><br><small style="color:rgba(255,255,255,0.6);">' + t.phone + '</small></td>',
-        '<td data-label="Pass Type">' + t.passType + '</td>',
-        '<td data-label="Guests">' + t.admitCount + ' Pax</td>',
-        '<td data-label="Paid" class="gold-text">\u20B9' + t.amount + '</td>',
+        '<td class="code-font gold-text" data-label="Booking ID">' + b.id + '</td>',
+        '<td data-label="Attendee"><strong>' + b.customer_name + '</strong><br><small style="color:rgba(255,255,255,0.6);">' + b.phone + '</small></td>',
+        '<td data-label="Pass Type">' + b.pass_name + '</td>',
+        '<td data-label="Guests">' + b.total_admit + ' Pax</td>',
+        '<td data-label="Paid" class="gold-text">\u20B9' + (b.expected_amount || 0).toLocaleString('en-IN') + '</td>',
         '<td data-label="Status"><span class="' + (isRedeemed ? 'badge-redeemed' : 'badge-paid') + '">' + (isRedeemed ? 'ADMITTED' : 'ACTIVE') + '</span></td>',
-        '<td data-label="Checked In">' + (t.checkedInAt || '\u2014') + '</td>',
-        '<td data-label="Action">' + (!isRedeemed ? '<button type="button" class="btn btn-admit-action btn-sm" data-id="' + t.id + '" style="padding:6px 14px; font-size:0.75rem;">Admit</button>' : '<span style="font-size:0.75rem; color:#a855f7;">Redeemed</span>') + '</td>'
+        '<td data-label="Check-in Time">' + (b.checked_in_at ? new Date(b.checked_in_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '\u2014') + '</td>',
+        '<td data-label="Action">' + (!isRedeemed ? '<button type="button" class="btn btn-admit-action btn-sm" data-bid="' + b.id + '" style="padding:6px 14px; font-size:0.75rem;">Admit</button>' : '<span style="font-size:0.75rem; color:#a855f7;">Redeemed</span>') + '</td>'
       ].join('');
 
-      var btn = tr.querySelector('button[data-id]');
-      btn?.addEventListener('click', function () {
-        EventDB.admitTicket(t.id, 'Admin Command Center');
-        refreshAdminDashboard();
+      var btn = tr.querySelector('button[data-bid]');
+      btn?.addEventListener('click', async function () {
+        var res = await apiPostWithFallback('/api/ticket/redeem', '/.netlify/functions/redeem-ticket', {
+          token: b.id,
+          staffName: 'Admin Command Center'
+        });
+        if (res.ok && res.data && res.data.success) {
+          alert('\u2713 Booking ' + b.id + ' marked as Admitted.');
+          refreshAdminDashboard();
+        } else {
+          alert('\u2715 Could not admit: ' + (res.data ? (res.data.message || res.data.reason) : 'Database error'));
+        }
       });
       adminTableBody.appendChild(tr);
     });
   }
 
-  adminTicketSearchInput?.addEventListener('input', renderAdminRosterTable);
+  adminTicketSearchInput?.addEventListener('input', function () {
+    if (cachedAdminData) renderAdminRosterFromBookings(cachedAdminData.allBookings || []);
+  });
+
   document.querySelectorAll('.filter-badge-group .filter-pill').forEach(function (pill) {
     pill.addEventListener('click', function () {
       document.querySelectorAll('.filter-badge-group .filter-pill').forEach(function (p) { p.classList.remove('active'); });
       pill.classList.add('active');
       activeAdminFilter = pill.getAttribute('data-filter');
-      renderAdminRosterTable();
+      if (cachedAdminData) renderAdminRosterFromBookings(cachedAdminData.allBookings || []);
     });
   });
 
   exportTicketsCsvBtn?.addEventListener('click', function () {
-    var tickets = EventDB.getAllTickets();
-    if (tickets.length === 0) return alert('No verified tickets available to export.');
+    var bookings = (cachedAdminData && cachedAdminData.allBookings) ? cachedAdminData.allBookings : [];
+    var verified = bookings.filter(function (b) { return b.payment_status === 'PAYMENT_VERIFIED'; });
+    if (verified.length === 0) return alert('No verified bookings available to export.');
 
-    var csv = 'Ticket ID,Attendee Name,Phone,Email,Pass Category,Headcount,Amount Paid,Payment Status,Payment Ref,Verification Token,Status,Booked At,Checked In At\n';
-    tickets.forEach(function (t) {
-      csv += '"' + t.id + '","' + t.name + '","' + t.phone + '","' + (t.email || '') + '","' + t.passType + '","' + t.admitCount + '","' + t.amount + '","' + (t.paymentStatus || 'PAID') + '","' + (t.paymentTxnId || '') + '","' + (t.verifyToken || '') + '","' + t.status + '","' + t.createdAt + '","' + (t.checkedInAt || '') + '"\n';
+    var csv = 'Booking ID,Attendee Name,Phone,Email,Pass Category,Quantity,Headcount,Amount Paid,Payment Status,UPI UTR,Ticket Status,Booked At,Checked In At\n';
+    verified.forEach(function (b) {
+      csv += '"' + b.id + '","' + b.customer_name + '","' + b.phone + '","' + (b.email || '') + '","' + b.pass_name + '","' + b.quantity + '","' + b.total_admit + '","' + b.expected_amount + '","' + b.payment_status + '","' + (b.upi_reference || '') + '","' + (b.ticket_status || 'ACTIVE') + '","' + (b.created_at || '') + '","' + (b.checked_in_at || '') + '"\n';
     });
 
     var blob = new Blob([csv], { type: 'text/csv' });
@@ -1947,6 +2522,18 @@
     var hash = window.location.hash.toLowerCase();
     if (hash === '#staff' || hash === '#staff-scanner' || hash === '#checkin') {
       openStaffPortal();
+    } else if (hash.includes('#verify')) {
+      var m = window.location.hash.match(/token=([a-zA-Z0-9_\-]+)/);
+      if (m && m[1]) {
+        if (hasStaffSession()) {
+          openStaffPortal();
+          verifyTicketCode(m[1]);
+        } else {
+          openCheckTicketModal();
+        }
+      }
+    } else if (hash === '#check-ticket' || hash === '#lookup' || hash === '#my-ticket') {
+      openCheckTicketModal();
     } else if (hash === '#admin' || hash === '#admin-dashboard' || hash === '#admin/dashboard' || hash.indexOf('#admin') === 0) {
       openAdminPortal();
       if ((hash === '#admin/dashboard' || hash === '#admin-dashboard') && !hasAdminSession()) {
@@ -1956,6 +2543,13 @@
           adminAuthFeedback.style.display = 'block';
         }
       }
+    } else if (!hash || hash === '#' || hash === '#hero' || hash === '#passes') {
+      if (hash === '#passes') {
+        try {
+          history.replaceState(null, document.title, window.location.pathname + window.location.search);
+        } catch (_) {}
+      }
+      window.scrollTo(0, 0);
     }
   }
 
@@ -1965,6 +2559,25 @@
   } else {
     handleRoute();
   }
+
+  window.addEventListener('pageshow', function () {
+    var hash = (window.location.hash || '').toLowerCase();
+    var isPortal = hash.startsWith('#staff') || hash.startsWith('#admin') || hash.startsWith('#check-ticket') || hash.startsWith('#lookup') || hash.startsWith('#my-ticket') || hash.includes('verify');
+    if (!isPortal && (!hash || hash === '#' || hash === '#hero' || hash === '#passes')) {
+      window.scrollTo(0, 0);
+    }
+  });
+
+  // Smooth scroll handler for all booking CTAs navigating to #passes
+  document.querySelectorAll('a[href="#passes"], #stickyBookBtn').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.preventDefault();
+      var passesSection = document.getElementById('passes');
+      if (passesSection) {
+        passesSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  });
 
   /* ==========================================================================
      12. MOBILE STICKY BOTTOM BOOKING CTA CONTROLLER
@@ -1995,6 +2608,8 @@
   window.RaasLeelaEngine = {
     EventDB: EventDB,
     sha256: sha256,
+    openBookingModal: openBookingModal,
+    openCheckTicketModal: openCheckTicketModal,
     openStaffPortal: openStaffPortal,
     openAdminPortal: openAdminPortal,
     updateStickyCtaVisibility: updateStickyCtaVisibility

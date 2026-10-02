@@ -4,18 +4,48 @@
 
 # Rewrites for Clean API Routes
 [[redirects]]
-  from = "/api/payment/create-order"
-  to = "/.netlify/functions/create-order"
+  from = "/api/booking/create"
+  to = "/.netlify/functions/create-booking"
   status = 200
 
 [[redirects]]
-  from = "/api/payment/verify"
-  to = "/.netlify/functions/verify-payment"
+  from = "/api/booking/submit-payment"
+  to = "/.netlify/functions/submit-payment"
+  status = 200
+
+[[redirects]]
+  from = "/api/ticket/retrieve"
+  to = "/.netlify/functions/retrieve-ticket"
   status = 200
 
 [[redirects]]
   from = "/api/ticket/verify"
   to = "/.netlify/functions/verify-ticket"
+  status = 200
+
+[[redirects]]
+  from = "/api/ticket/inspect"
+  to = "/.netlify/functions/verify-ticket"
+  status = 200
+
+[[redirects]]
+  from = "/api/ticket/redeem"
+  to = "/.netlify/functions/redeem-ticket"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/bookings"
+  to = "/.netlify/functions/admin-bookings"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/approve-payment"
+  to = "/.netlify/functions/admin-approve-payment"
+  status = 200
+
+[[redirects]]
+  from = "/api/admin/reject-payment"
+  to = "/.netlify/functions/admin-reject-payment"
   status = 200
 
 [[redirects]]

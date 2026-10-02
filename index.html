@@ -22,6 +22,24 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800;900&family=Cormorant+Garamond:ital,wght@0,600;0,700;1,400;1,600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 
   <link rel="stylesheet" href="styles.css">
+  <script>
+    // Ensure fresh homepage visits always start at top hero section
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    (function () {
+      var h = (window.location.hash || '').toLowerCase();
+      var isPortal = h.indexOf('#staff') === 0 || h.indexOf('#admin') === 0 || h.indexOf('#check-ticket') === 0 || h.indexOf('#lookup') === 0 || h.indexOf('#my-ticket') === 0 || h.indexOf('verify') !== -1;
+      if (!isPortal) {
+        if (h === '#passes') {
+          try {
+            history.replaceState(null, document.title, window.location.pathname + window.location.search);
+          } catch (_) {}
+        }
+        window.scrollTo(0, 0);
+      }
+    })();
+  </script>
 </head>
 <body class="theme-cinematic-night">
 
@@ -57,6 +75,11 @@
 
       <!-- Action Controls -->
       <div class="nav-actions">
+        <!-- Check Ticket Trigger -->
+        <button type="button" class="nav-portal-btn" id="navCheckTicketBtn" title="Check or Retrieve Your Ticket">
+          <span>Check Ticket</span>
+        </button>
+
         <!-- Gate Staff Check-In Trigger -->
         <button type="button" class="nav-portal-btn" id="navStaffPortalBtn" title="Gate Staff Verification & Check-in">
           <span class="status-live-indicator"></span>
@@ -100,6 +123,7 @@
         <a href="#concierge" class="d-link">Official Contacts</a>
       </div>
       <div class="drawer-portal-actions">
+        <button type="button" class="d-portal-btn" id="dCheckTicketBtn">Check / Retrieve Pass</button>
         <button type="button" class="d-portal-btn" id="dStaffBtn">Staff Gate Check-In</button>
         <button type="button" class="d-portal-btn" id="dAdminBtn">Admin Analytics</button>
       </div>
@@ -515,11 +539,11 @@
               </div>
               <span class="sp-label">NORTEK</span>
             </div>
-            <div class="sponsor-card-capsule" title="PH Ramdev - Associate Partner">
+            <div class="sponsor-card-capsule" title="RH Ramdev - Associate Partner">
               <div class="sp-img-box">
-                <img src="sponsor_ph_ramdev.png" alt="PH Ramdev" class="sp-img img-ramdev">
+                <img src="sponsor_ph_ramdev.png" alt="RH Ramdev" class="sp-img img-ramdev">
               </div>
-              <span class="sp-label">PH RAMDEV</span>
+              <span class="sp-label">RH RAMDEV</span>
             </div>
           </div>
         </div>
@@ -1041,18 +1065,12 @@
   </main>
 
   <!-- ==========================================================================
-       MOBILE STICKY BOOKING CTA (Public Viewport)
+       MOBILE FLOATING BOOK NOW CTA (Bottom-Left Public Viewport)
        ========================================================================== -->
   <aside class="mobile-sticky-cta-bar" id="mobileStickyCta" aria-label="Quick Pass Reservation">
-    <div class="sticky-cta-inner">
-      <div class="sticky-cta-info">
-        <span class="sticky-cta-label">PASSES FROM</span>
-        <strong class="sticky-cta-price">&#8377;299</strong>
-      </div>
-      <button type="button" class="btn btn-gold-shimmer sticky-cta-btn trigger-checkout-btn" data-category="stag" data-price="299" data-admit="1" id="stickyBookBtn">
-        <span>BOOK NOW</span>
-      </button>
-    </div>
+    <a href="#passes" class="btn btn-gold-shimmer sticky-cta-btn" id="stickyBookBtn" aria-label="Book Now">
+      <span>BOOK NOW</span>
+    </a>
   </aside>
 
   <!-- ==========================================================================
@@ -1066,6 +1084,8 @@
       </div>
       <div class="footer-operations-pane">
         <div class="portal-links-row">
+          <a href="#" id="footerCheckTicketTrigger">Check / Retrieve Pass</a>
+          <span>&bull;</span>
           <a href="#" id="footerStaffTrigger">Staff Gate Portal</a>
           <span>&bull;</span>
           <a href="#" id="footerAdminTrigger">Admin Dashboard</a>
@@ -1146,88 +1166,94 @@
         </form>
       </div>
 
-      <!-- STEP 2: CLEAN BOOKING CONFIRMATION SCREEN (RAZORPAY STANDARD CHECKOUT) -->
-      <div id="bookingConfirmStep" style="display: none;">
+      <!-- STEP 2: PERSONAL UPI PAYMENT SCREEN -->
+      <div id="bookingPaymentStep" style="display: none;">
         <div class="dialog-header">
-          <span class="dialog-eyebrow">RAAS LEELA</span>
-          <h3 class="dialog-title">COMPLETE YOUR BOOKING</h3>
-          <p class="dialog-desc">Order Reference: <strong id="confirmOrderRef" class="code-font" style="color:var(--gold-champagne);">ORD-RL26-00000</strong></p>
+          <span class="dialog-eyebrow">RAAS LEELA 2026</span>
+          <h3 class="dialog-title">SCAN &amp; PAY VIA UPI</h3>
+          <p class="dialog-desc">Booking ID: <strong id="upiBookingIdDisplay" class="code-font" style="color:var(--gold-champagne);">RL-00000000</strong></p>
         </div>
 
-        <div class="booking-confirm-card">
+        <div class="booking-confirm-card" style="margin-bottom: 14px;">
           <div class="confirm-pass-badge-row">
-            <span class="confirm-pass-title" id="confirmPassTitle">STAG PASS</span>
-            <span class="confirm-headcount-badge" id="confirmHeadcountBadge">1 PERSON</span>
+            <span class="confirm-pass-title" id="upiPassTitle">COUPLE PASS</span>
+            <span class="confirm-headcount-badge" id="upiHeadcountBadge">2 PEOPLE</span>
           </div>
-
           <div class="confirm-attendee-mini">
-            <span id="confirmAttendeeName">Rahul Sharma</span> &bull; <span id="confirmAttendeePhone">9876543210</span>
+            <span id="upiAttendeeName">Attendee</span> &bull; <span id="upiAttendeePhone">Phone</span>
           </div>
-
           <div class="confirm-divider"></div>
-
           <div class="confirm-total-line">
-            <span class="confirm-total-label">TOTAL</span>
-            <strong class="confirm-total-amount" id="confirmTotalAmount">&#8377;299</strong>
+            <span class="confirm-total-label">AMOUNT TO PAY</span>
+            <strong class="confirm-total-amount" id="upiAmountToPay">&#8377;499</strong>
           </div>
         </div>
 
-        <!-- Real Razorpay Standard Checkout Launch Button -->
-        <button type="button" class="btn btn-gold-shimmer btn-block btn-lg" id="proceedToPaymentBtn">
-          <span>PROCEED TO PAYMENT</span>
-        </button>
-
-        <!-- Secondary Action: Modify Details -->
-        <div class="confirm-back-wrap" style="margin-top: 10px;">
-          <button type="button" class="btn btn-plain-dark btn-sm btn-block" id="backToFormBtn">
-            <span>&larr; Modify Attendee Details</span>
-          </button>
-        </div>
-
-        <!-- STATE: VERIFYING YOUR PAYMENT... -->
-        <div id="paymentVerifyingCard" class="payment-pending-card" style="display: none; margin-top: 16px;">
-          <div class="spinner-orbit"></div>
-          <h4>VERIFYING YOUR PAYMENT...</h4>
-          <p>Please wait while we confirm your payment.</p>
-        </div>
-
-        <!-- STATE: CUSTOMER CLOSES / CANCELS RAZORPAY -->
-        <div id="paymentCancelledCard" class="payment-alert-card warning-card" style="display: none; margin-top: 16px;">
-          <svg class="alert-icon" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          <h4>PAYMENT NOT COMPLETED</h4>
-          <p>Your booking has been saved, but your pass has not been issued.</p>
-          <button type="button" class="btn btn-gold-shimmer btn-sm btn-block" id="retryAfterCancelBtn" style="margin-top: 8px;">
-            <span>TRY PAYMENT AGAIN</span>
-          </button>
-        </div>
-
-        <!-- STATE: PAYMENT FAILED -->
-        <div id="paymentFailedCard" class="payment-alert-card error-card" style="display: none; margin-top: 16px;">
-          <svg class="alert-icon" viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-          <h4>PAYMENT FAILED</h4>
-          <p>Your RAAS LEELA pass has NOT been issued.</p>
-          <button type="button" class="btn btn-gold-shimmer btn-sm btn-block" id="retryAfterFailBtn" style="margin-top: 8px;">
-            <span>TRY PAYMENT AGAIN</span>
-          </button>
-        </div>
-
-        <!-- STATE: CONFIGURATION REQUIRED (When Razorpay Key ID is not configured) -->
-        <div id="gatewayConfigRequiredCard" class="payment-alert-card notice-card" style="display: none; margin-top: 16px;">
-          <div class="notice-badge-header">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-            <h5>Razorpay credentials/configuration required.</h5>
+        <!-- Personal UPI QR Box -->
+        <div class="upi-payment-stage">
+          <div class="upi-qr-box">
+            <img src="upi-qr.png" id="personalUpiQrImage" alt="Personal UPI QR Code">
           </div>
-          <p class="notice-desc">
-            To enable Razorpay payments, please configure your credentials in Netlify Site configuration &gt; Environment variables:
-          </p>
-          <div class="config-keys-list">
-            <div>&bull; <code>RAZORPAY_KEY_ID</code> &mdash; Scope must include <strong>Functions</strong> (or All scopes)</div>
-            <div>&bull; <code>RAZORPAY_KEY_SECRET</code> &mdash; Scope must include <strong>Functions</strong> (Server-side HMAC only)</div>
+          <div class="upi-apps-row">
+            <span>&bull; Google Pay</span>
+            <span>&bull; PhonePe</span>
+            <span>&bull; Paytm</span>
+            <span>&bull; Any UPI</span>
           </div>
-          <p class="config-keys-note">Booking remains PENDING/UNPAID. No ticket or QR will be issued without verified payment.</p>
-          <button type="button" class="btn btn-gold-shimmer btn-sm btn-block" id="retryAfterConfigBtn" style="margin-top: 10px;">
-            <span>TRY PAYMENT AGAIN</span>
+        </div>
+
+        <div class="upi-instruction-card">
+          <ol>
+            <li>Scan the QR code above using your preferred UPI app.</li>
+            <li>Ensure the payment amount is exactly <strong id="upiAmountInstruction">&#8377;499</strong>.</li>
+            <li>After completing payment, copy the <strong>UPI Transaction / Reference ID (UTR)</strong> from your app and paste it below.</li>
+          </ol>
+        </div>
+
+        <!-- UPI Transaction Input Form -->
+        <form id="upiSubmissionForm">
+          <div class="upi-utr-input-wrap">
+            <label for="upiUtrInput">UPI Transaction / Reference ID (UTR):</label>
+            <input type="text" id="upiUtrInput" class="upi-utr-input" placeholder="e.g. 429183920194 (12-digit UTR)" required autocomplete="off">
+          </div>
+
+          <button type="submit" class="btn btn-gold-shimmer btn-block btn-lg upi-submit-btn" id="submitUpiPaymentBtn">
+            <span>I HAVE PAID &mdash; SUBMIT FOR VERIFICATION</span>
           </button>
+        </form>
+
+        <p class="upi-disclaimer">
+          <strong>IMPORTANT:</strong> Clicking this button does not activate your ticket. It submits your payment claim for manual verification by the organizer. Once confirmed, your official pass and entry QR will be issued.
+        </p>
+
+        <div class="confirm-back-wrap" style="margin-top: 12px;">
+          <button type="button" class="btn btn-plain-dark btn-sm btn-block" id="backToFormFromUpiBtn">
+            <span>&larr; Modify Booking Details</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- STEP 2B: PAYMENT SUBMITTED (PENDING VERIFICATION) -->
+      <div id="bookingSubmittedStep" style="display: none;">
+        <div class="submitted-status-card">
+          <span class="submitted-status-badge">PAYMENT SUBMITTED</span>
+          <h4>PAYMENT CLAIM SUBMITTED</h4>
+          <span class="submitted-booking-id" id="submittedBookingIdDisplay">RL-00000000</span>
+          <p>Your payment reference has been recorded in the central event database.</p>
+          <p style="color:#ffd700; font-weight:600;">Your ticket will become available after the organizer confirms your payment.</p>
+          <div style="background:rgba(0,0,0,0.4); padding:10px 14px; border-radius:8px; margin-bottom:18px; font-size:0.8rem; text-align:left; color:#e5d3c8;">
+            <div>&bull; Pass: <strong id="submittedPassNameDisplay" style="color:#fff;">COUPLE PASS</strong></div>
+            <div>&bull; Amount: <strong id="submittedAmountDisplay" style="color:#4ade80;">&#8377;499</strong></div>
+            <div>&bull; Reference (UTR): <strong id="submittedUtrDisplay" style="color:#fde047; font-family:monospace;">UTR-123456</strong></div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 10px;">
+            <button type="button" class="btn btn-gold-shimmer btn-block" id="checkSubmittedTicketBtn">
+              <span>CHECK TICKET STATUS</span>
+            </button>
+            <button type="button" class="btn btn-plain-dark btn-block" id="closeSubmittedBookingBtn">
+              <span>CLOSE</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -1580,6 +1606,31 @@
           </div>
         </div>
 
+        <!-- New Payment Request Live Notification -->
+        <div id="adminPendingAlertBanner" class="admin-pending-alert-banner" style="display: none;">
+          <div>🔔 <strong>New Payment Verification Request</strong> &mdash; <span id="alertPendingNoticeText">1 request awaiting verification</span></div>
+          <button type="button" class="btn btn-sm btn-glass-gold" id="jumpToPendingBtn">Review Now &darr;</button>
+        </div>
+
+        <!-- PENDING PAYMENT VERIFICATIONS (Manual Organizer Approval Section) -->
+        <div class="admin-pending-section" id="adminPendingSection">
+          <div class="pending-section-header">
+            <div class="pending-section-title">
+              <span>PENDING PAYMENT VERIFICATIONS</span>
+              <span class="badge-pending-count" id="adminPendingCountBadge">0 PENDING</span>
+            </div>
+            <button type="button" class="btn btn-glass-gold btn-sm" id="refreshAdminDataBtn" title="Refresh from database">
+              <span>&#x21bb; Refresh</span>
+            </button>
+          </div>
+
+          <div id="adminPendingListContainer" class="pending-items-grid">
+            <div style="text-align: center; padding: 24px; color: rgba(255, 255, 255, 0.5); font-size: 0.85rem;" id="noPendingRequestsPlaceholder">
+              &check; No pending payment verification requests. All bookings processed.
+            </div>
+          </div>
+        </div>
+
         <!-- Real-Time Top Summary Cards -->
         <div class="admin-metrics-row">
           <div class="metric-card">
@@ -1689,8 +1740,76 @@
     </div>
   </div>
 
+  <!-- ADMIN APPROVAL CONFIRMATION MODAL -->
+  <div class="modal-scrim" id="adminApproveModal" aria-hidden="true" style="z-index: 10000;">
+    <div class="admin-confirm-dialog">
+      <div style="color: #4ade80; font-size: 2rem; margin-bottom: 8px;">&check;</div>
+      <h4>APPROVE PAYMENT CONFIRMATION</h4>
+      <p id="adminApproveConfirmText">
+        Have you personally verified that <strong id="approveModalAmountText">&#8377;499</strong> was received in your UPI account for Booking <strong class="code-font" id="approveModalBookingId">RL-00000000</strong>?
+      </p>
+      <div class="admin-confirm-actions">
+        <button type="button" class="btn btn-plain-dark btn-sm" id="cancelApproveModalBtn">CANCEL</button>
+        <button type="button" class="btn btn-approve-payment btn-sm" id="confirmApproveModalBtn">YES, APPROVE PAYMENT</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ADMIN REJECTION CONFIRMATION MODAL -->
+  <div class="modal-scrim" id="adminRejectModal" aria-hidden="true" style="z-index: 10000;">
+    <div class="admin-confirm-dialog">
+      <div style="color: #f87171; font-size: 2rem; margin-bottom: 8px;">&times;</div>
+      <h4>REJECT PAYMENT CONFIRMATION</h4>
+      <p id="adminRejectConfirmText">
+        Are you sure you want to reject payment for Booking <strong class="code-font" id="rejectModalBookingId">RL-00000000</strong>?
+      </p>
+      <div style="margin-bottom: 16px; text-align: left;">
+        <label for="rejectReasonInput" style="font-size: 0.75rem; color: #c4a496; display: block; margin-bottom: 4px;">Reason for Rejection (Optional):</label>
+        <input type="text" id="rejectReasonInput" class="dark-input" placeholder="e.g. UTR not found in bank statement" style="width: 100%;">
+      </div>
+      <div class="admin-confirm-actions">
+        <button type="button" class="btn btn-plain-dark btn-sm" id="cancelRejectModalBtn">CANCEL</button>
+        <button type="button" class="btn btn-reject-payment btn-sm" id="confirmRejectModalBtn">YES, REJECT PAYMENT</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ==========================================================================
-       4. POSTER LIGHTBOX MODAL
+       4. CHECK / RETRIEVE MY TICKET MODAL
+       ========================================================================== -->
+  <div class="modal-scrim" id="checkTicketModal" aria-hidden="true">
+    <div class="modal-dialog-box" style="max-width: 480px;">
+      <button type="button" class="dialog-close-btn" id="checkTicketModalCloseBtn" aria-label="Close ticket lookup">&times;</button>
+      
+      <div class="dialog-header">
+        <span class="dialog-eyebrow">RAAS LEELA 2026</span>
+        <h3 class="dialog-title">CHECK / RETRIEVE PASS</h3>
+        <p class="dialog-desc">Enter your Booking ID and registered WhatsApp number to check verification status or retrieve your digital pass.</p>
+      </div>
+
+      <form id="checkTicketForm" style="margin-bottom: 16px;">
+        <div class="form-group text-left" style="margin-bottom: 14px;">
+          <label for="lookupBookingIdInput" style="display:block; font-size:0.8rem; font-weight:700; color:var(--gold-champagne); margin-bottom:4px;">Booking ID:</label>
+          <input type="text" id="lookupBookingIdInput" class="dark-input" placeholder="e.g. RL-74920158" required style="width:100%; font-family:monospace; text-transform:uppercase;">
+        </div>
+
+        <div class="form-group text-left" style="margin-bottom: 16px;">
+          <label for="lookupPhoneInput" style="display:block; font-size:0.8rem; font-weight:700; color:var(--gold-champagne); margin-bottom:4px;">Registered WhatsApp Number:</label>
+          <input type="tel" id="lookupPhoneInput" class="dark-input" placeholder="10-digit number" required style="width:100%;">
+        </div>
+
+        <button type="submit" class="btn btn-gold-shimmer btn-block btn-lg" id="submitCheckTicketBtn" style="min-height: 48px;">
+          <span>CHECK TICKET STATUS</span>
+        </button>
+      </form>
+
+      <!-- Status Card Display -->
+      <div id="lookupResultContainer" style="display: none; margin-top: 14px;"></div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       5. POSTER LIGHTBOX MODAL
        ========================================================================== -->
   <div class="modal-scrim" id="posterLightboxModal" aria-hidden="true">
     <div class="poster-modal-viewport">
