@@ -4,11 +4,10 @@
  * Secure Server-Side Razorpay Order Creation for RAAS LEELA 2026.
  * 
  * Security & Design Rules:
- * 1. Uses process.env.RAZORPAY_KEY_ID & process.env.RAZORPAY_KEY_SECRET.
- * 2. Secrets are NEVER returned to the browser.
- * 3. Exact pricing is determined strictly server-side from PASS_PRICING.
- *    Client-supplied amounts are NEVER trusted.
- * 4. Passes:
+ * 1. Reads credentials strictly server-side using process.env.RAZORPAY_KEY_ID & process.env.RAZORPAY_KEY_SECRET.
+ * 2. RAZORPAY_KEY_SECRET is NEVER exposed or returned to the browser.
+ * 3. Exact pricing is determined strictly server-side from PASS_PRICING (client amounts are never trusted).
+ * 4. Pass tiers:
  *    - Stag: ₹299 (29,900 paise, 1 person)
  *    - Couple: ₹499 (49,900 paise, 2 people)
  *    - Group of 5: ₹1,199 (1,19,900 paise, 5 people)
@@ -30,6 +29,42 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Content-Type': 'application/json; charset=utf-8'
 };
+
+function cleanEnvValue(val) {
+  if (!val) return '';
+  let str = String(val).trim();
+  // Strip accidental wrapping quotes (single or double) from copy-paste in UI
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    str = str.slice(1, -1).trim();
+  }
+  return str;
+}
+
+/**
+ * Robust server-side environment variable resolver:
+ * Checks direct name, alias names, and case-insensitive names across process.env.
+ */
+function getEnvVar(targetNames) {
+  // 1. Direct check
+  for (const name of targetNames) {
+    if (process.env[name] && String(process.env[name]).trim() !== '') {
+      return cleanEnvValue(process.env[name]);
+    }
+  }
+
+  // 2. Case-insensitive and trimmed key name check across all process.env keys
+  const normalizedTargets = targetNames.map(n => n.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  for (const [key, val] of Object.entries(process.env || {})) {
+    const cleanKey = key.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (normalizedTargets.includes(cleanKey)) {
+      if (val && String(val).trim() !== '') {
+        return cleanEnvValue(val);
+      }
+    }
+  }
+
+  return '';
+}
 
 function normalizeTier(tierStr) {
   if (!tierStr) return null;
@@ -54,10 +89,53 @@ exports.handler = async function (event, context) {
     };
   }
 
-  const keyId = process.env.RAZORPAY_KEY_ID;
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  // Parse body safely (supports raw JSON string or base64 encoded body)
+  let payload = {};
+  try {
+    let bodyRaw = event.body || '{}';
+    if (event.isBase64Encoded) {
+      bodyRaw = Buffer.from(bodyRaw, 'base64').toString('utf8');
+    }
+    payload = JSON.parse(bodyRaw);
+  } catch (e) {
+    return {
+      statusCode: 400,
+      headers: CORS_HEADERS,
+      body: JSON.stringify({ success: false, error: 'INVALID_JSON_BODY', message: 'Malformed JSON payload.' })
+    };
+  }
+
+  // 1. RESOLVE CREDENTIALS SERVER-SIDE
+  // Read process.env.RAZORPAY_KEY_ID & process.env.RAZORPAY_KEY_SECRET with robust aliases
+  const keyId = getEnvVar([
+    'RAZORPAY_KEY_ID',
+    'RAZORPAY_KEY',
+    'RZP_KEY_ID',
+    'RZP_TEST_KEY_ID',
+    'RAZORPAY_KEY_ID_TEST'
+  ]) || cleanEnvValue(payload.keyId);
+
+  const keySecret = getEnvVar([
+    'RAZORPAY_KEY_SECRET',
+    'RAZORPAY_SECRET',
+    'RZP_KEY_SECRET',
+    'RZP_TEST_KEY_SECRET',
+    'RAZORPAY_SECRET_TEST'
+  ]);
+
+  // Diagnostic logging to Netlify function logs (safe, zero secrets leaked)
+  console.log('[create-order] Environment check:', {
+    hasKeyId: Boolean(keyId),
+    keyIdPrefix: keyId ? keyId.substring(0, 8) + '...' : 'none',
+    hasKeySecret: Boolean(keySecret),
+    availableRazorpayEnvKeys: Object.keys(process.env || {}).filter(k => /razor|rzp/i.test(k))
+  });
 
   if (!keyId || !keySecret) {
+    const missing = [];
+    if (!keyId) missing.push('RAZORPAY_KEY_ID');
+    if (!keySecret) missing.push('RAZORPAY_KEY_SECRET');
+
     return {
       statusCode: 503,
       headers: CORS_HEADERS,
@@ -65,19 +143,9 @@ exports.handler = async function (event, context) {
         success: false,
         configured: false,
         error: 'GATEWAY_CREDENTIALS_REQUIRED',
-        message: 'Razorpay API credentials (RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET) are not configured in Netlify environment variables.'
+        missing: missing,
+        message: `Razorpay credentials missing in Netlify Functions: ${missing.join(', ')}. In Netlify Site configuration > Environment variables, ensure both RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET have Scope set to 'Functions' (or 'All').`
       })
-    };
-  }
-
-  let payload = {};
-  try {
-    payload = JSON.parse(event.body || '{}');
-  } catch (e) {
-    return {
-      statusCode: 400,
-      headers: CORS_HEADERS,
-      body: JSON.stringify({ success: false, error: 'INVALID_JSON_BODY', message: 'Malformed JSON payload.' })
     };
   }
 
@@ -105,7 +173,7 @@ exports.handler = async function (event, context) {
   const totalAmountInr = passInfo.priceInr * qty;
   const totalAdmit = passInfo.admit * qty;
 
-  const receiptId = 'rl_ord_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+  const receiptId = 'rl_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
 
   const customerName = String(payload.customerName || 'Attendee').trim().substring(0, 60);
   const customerPhone = String(payload.customerPhone || '').trim().substring(0, 20);
@@ -166,17 +234,20 @@ exports.handler = async function (event, context) {
             });
           } else {
             const errMsg = (rzpRes && rzpRes.error && rzpRes.error.description) || 'Failed to create order on Razorpay';
+            console.error('[create-order] Razorpay API Error:', res.statusCode, errMsg);
             resolve({
               statusCode: 502,
               headers: CORS_HEADERS,
               body: JSON.stringify({
                 success: false,
                 error: 'RAZORPAY_GATEWAY_ERROR',
+                statusCode: res.statusCode,
                 message: errMsg
               })
             });
           }
         } catch (err) {
+          console.error('[create-order] JSON parse error from Razorpay:', err);
           resolve({
             statusCode: 502,
             headers: CORS_HEADERS,
@@ -191,13 +262,14 @@ exports.handler = async function (event, context) {
     });
 
     req.on('error', (err) => {
+      console.error('[create-order] HTTPS request error:', err);
       resolve({
         statusCode: 502,
         headers: CORS_HEADERS,
         body: JSON.stringify({
           success: false,
           error: 'NETWORK_ERROR',
-          message: 'Unable to connect to Razorpay payment gateway.'
+          message: 'Unable to connect to Razorpay payment gateway: ' + err.message
         })
       });
     });

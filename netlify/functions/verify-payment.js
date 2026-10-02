@@ -56,6 +56,35 @@ function generateDeterministicToken(paymentId, index, secret) {
   return 'rlv_' + hash.substring(0, 32);
 }
 
+function cleanEnvValue(val) {
+  if (!val) return '';
+  let str = String(val).trim();
+  if ((str.startsWith('"') && str.endsWith('"')) || (str.startsWith("'") && str.endsWith("'"))) {
+    str = str.slice(1, -1).trim();
+  }
+  return str;
+}
+
+function getEnvVar(targetNames) {
+  for (const name of targetNames) {
+    if (process.env[name] && String(process.env[name]).trim() !== '') {
+      return cleanEnvValue(process.env[name]);
+    }
+  }
+
+  const normalizedTargets = targetNames.map(n => n.toUpperCase().replace(/[^A-Z0-9]/g, ''));
+  for (const [key, val] of Object.entries(process.env || {})) {
+    const cleanKey = key.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (normalizedTargets.includes(cleanKey)) {
+      if (val && String(val).trim() !== '') {
+        return cleanEnvValue(val);
+      }
+    }
+  }
+
+  return '';
+}
+
 function normalizeTier(tierStr) {
   if (!tierStr) return 'couple';
   const clean = String(tierStr).trim().toLowerCase();
@@ -79,7 +108,14 @@ exports.handler = async function (event, context) {
     };
   }
 
-  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  const keySecret = getEnvVar([
+    'RAZORPAY_KEY_SECRET',
+    'RAZORPAY_SECRET',
+    'RZP_KEY_SECRET',
+    'RZP_TEST_KEY_SECRET',
+    'RAZORPAY_SECRET_TEST'
+  ]);
+
   if (!keySecret) {
     return {
       statusCode: 503,
@@ -87,14 +123,18 @@ exports.handler = async function (event, context) {
       body: JSON.stringify({
         success: false,
         error: 'RAZORPAY_KEY_SECRET_NOT_CONFIGURED',
-        message: 'RAZORPAY_KEY_SECRET environment variable is missing in Netlify.'
+        message: 'RAZORPAY_KEY_SECRET environment variable is missing or empty in Netlify Functions runtime.'
       })
     };
   }
 
   let payload = {};
   try {
-    payload = JSON.parse(event.body || '{}');
+    let bodyRaw = event.body || '{}';
+    if (event.isBase64Encoded) {
+      bodyRaw = Buffer.from(bodyRaw, 'base64').toString('utf8');
+    }
+    payload = JSON.parse(bodyRaw);
   } catch (e) {
     return {
       statusCode: 400,
