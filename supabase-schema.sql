@@ -36,8 +36,8 @@ CREATE TABLE IF NOT EXISTS public.bookings (
     unit_price INTEGER NOT NULL CHECK (unit_price IN (299, 499, 1199)),
     expected_amount INTEGER NOT NULL CHECK (expected_amount > 0),
     upi_reference TEXT,                              -- Customer-submitted UPI UTR / Transaction ID
-    payment_status TEXT NOT NULL DEFAULT 'AWAITING_PAYMENT' 
-        CHECK (payment_status IN ('AWAITING_PAYMENT', 'PENDING_VERIFICATION', 'PAYMENT_VERIFIED', 'PAYMENT_REJECTED')),
+    payment_status TEXT NOT NULL DEFAULT 'PENDING_PAYMENT' 
+        CHECK (payment_status IN ('PENDING_PAYMENT', 'AWAITING_PAYMENT', 'PENDING_VERIFICATION', 'PAYMENT_VERIFIED', 'PAYMENT_REJECTED')),
     ticket_status TEXT NOT NULL DEFAULT 'NOT_ISSUED' 
         CHECK (ticket_status IN ('NOT_ISSUED', 'ACTIVE', 'REDEEMED', 'CANCELLED')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -163,7 +163,7 @@ BEGIN
     END IF;
 
     -- Status Transition Guard: Only pending or awaiting bookings can be approved
-    IF v_booking.payment_status NOT IN ('PENDING_VERIFICATION', 'AWAITING_PAYMENT') THEN
+    IF v_booking.payment_status NOT IN ('PENDING_VERIFICATION', 'PENDING_PAYMENT', 'AWAITING_PAYMENT') THEN
         RETURN jsonb_build_object(
             'success', false,
             'error', 'INVALID_STATUS_TRANSITION',
@@ -353,7 +353,9 @@ DECLARE
 BEGIN
     SELECT * INTO v_ticket 
     FROM public.tickets 
-    WHERE verify_token = v_clean_token OR id = v_clean_token;
+    WHERE verify_token = v_clean_token OR id = v_clean_token OR booking_id = v_clean_token
+    ORDER BY (CASE WHEN status = 'ACTIVE' THEN 1 WHEN status = 'REDEEMED' THEN 2 ELSE 3 END)
+    LIMIT 1;
 
     IF NOT FOUND THEN
         RETURN jsonb_build_object(
@@ -438,7 +440,9 @@ BEGIN
     -- Explicit row lock on the ticket (FOR UPDATE)
     SELECT * INTO v_ticket 
     FROM public.tickets 
-    WHERE verify_token = v_clean_token OR id = v_clean_token
+    WHERE verify_token = v_clean_token OR id = v_clean_token OR booking_id = v_clean_token
+    ORDER BY (CASE WHEN status = 'ACTIVE' THEN 1 WHEN status = 'REDEEMED' THEN 2 ELSE 3 END)
+    LIMIT 1
     FOR UPDATE;
 
     IF NOT FOUND THEN
@@ -553,19 +557,22 @@ BEGIN
         );
     END IF;
 
-    -- Status: AWAITING_PAYMENT (No QR / No tickets)
-    IF v_booking.payment_status = 'AWAITING_PAYMENT' THEN
+    -- Status: PENDING_PAYMENT / AWAITING_PAYMENT (No QR / No tickets)
+    IF v_booking.payment_status IN ('PENDING_PAYMENT', 'AWAITING_PAYMENT') THEN
         RETURN jsonb_build_object(
             'success', true,
-            'status', 'AWAITING_PAYMENT',
-            'message', 'Payment has not been submitted for this booking.',
+            'status', 'PENDING_PAYMENT',
+            'message', 'PAYMENT PENDING: Scan the UPI QR code to complete your booking.',
             'booking', jsonb_build_object(
                 'id', v_booking.id,
                 'customer_name', v_booking.customer_name,
+                'phone', v_booking.phone,
                 'pass_name', v_booking.pass_name,
                 'quantity', v_booking.quantity,
                 'expected_amount', v_booking.expected_amount,
-                'payment_status', v_booking.payment_status
+                'total_admit', v_booking.total_admit,
+                'payment_status', v_booking.payment_status,
+                'ticket_status', v_booking.ticket_status
             )
         );
     END IF;
@@ -575,16 +582,19 @@ BEGIN
         RETURN jsonb_build_object(
             'success', true,
             'status', 'PENDING_VERIFICATION',
-            'message', 'Payment verification is currently pending with the organizer.',
+            'message', 'PAYMENT AWAITING HOST APPROVAL: We have received your payment submission. Your booking will be confirmed after verification.',
             'booking', jsonb_build_object(
                 'id', v_booking.id,
                 'customer_name', v_booking.customer_name,
+                'phone', v_booking.phone,
                 'pass_name', v_booking.pass_name,
                 'quantity', v_booking.quantity,
                 'expected_amount', v_booking.expected_amount,
+                'total_admit', v_booking.total_admit,
                 'upi_reference', v_booking.upi_reference,
                 'payment_submitted_at', v_booking.payment_submitted_at,
-                'payment_status', v_booking.payment_status
+                'payment_status', v_booking.payment_status,
+                'ticket_status', v_booking.ticket_status
             )
         );
     END IF;
@@ -594,12 +604,15 @@ BEGIN
         RETURN jsonb_build_object(
             'success', true,
             'status', 'PAYMENT_REJECTED',
-            'message', 'Payment could not be verified. Please contact the organizer.',
+            'message', 'PAYMENT COULD NOT BE VERIFIED: Please contact event organizers with your payment receipt.',
             'rejected_reason', v_booking.rejected_reason,
             'booking', jsonb_build_object(
                 'id', v_booking.id,
                 'customer_name', v_booking.customer_name,
-                'payment_status', v_booking.payment_status
+                'phone', v_booking.phone,
+                'pass_name', v_booking.pass_name,
+                'payment_status', v_booking.payment_status,
+                'ticket_status', v_booking.ticket_status
             )
         );
     END IF;
@@ -626,7 +639,7 @@ BEGIN
         'success', true,
         'status', 'PAYMENT_VERIFIED',
         'ticket_status', v_booking.ticket_status,
-        'message', 'Payment verified. Digital pass active.',
+        'message', 'BOOKING CONFIRMED',
         'booking', jsonb_build_object(
             'id', v_booking.id,
             'customer_name', v_booking.customer_name,
@@ -680,7 +693,7 @@ BEGIN
         COUNT(*) FILTER (WHERE payment_status = 'PENDING_VERIFICATION'),
         COUNT(*) FILTER (WHERE payment_status = 'PAYMENT_VERIFIED'),
         COUNT(*) FILTER (WHERE payment_status = 'PAYMENT_REJECTED'),
-        COUNT(*) FILTER (WHERE payment_status = 'AWAITING_PAYMENT')
+        COUNT(*) FILTER (WHERE payment_status IN ('PENDING_PAYMENT', 'AWAITING_PAYMENT'))
     INTO 
         v_total_bookings,
         v_pending_count,
@@ -725,12 +738,21 @@ BEGIN
         'total_bookings', v_total_bookings,
         'pending_verification_count', v_pending_count,
         'approved_bookings_count', v_approved_count,
+        'paid_bookings', v_approved_count,
         'rejected_bookings_count', v_rejected_count,
         'awaiting_payment_count', v_awaiting_count,
         'total_verified_revenue', v_total_revenue,
+        'total_revenue', v_total_revenue,
         'total_admit_capacity', v_total_admit_capacity,
+        'total_attendees', v_total_admit_capacity,
         'total_checked_in', v_total_checked_in,
+        'checked_in', v_total_checked_in,
         'total_remaining', v_total_remaining,
+        'tier_breakdown', jsonb_build_object(
+            'stag', jsonb_build_object('bookings', v_stag_approved, 'people', v_stag_approved * 1, 'revenue', v_stag_rev, 'unit_price', 299),
+            'couple', jsonb_build_object('bookings', v_couple_approved, 'people', v_couple_approved * 2, 'revenue', v_couple_rev, 'unit_price', 499),
+            'group', jsonb_build_object('bookings', v_group_approved, 'people', v_group_approved * 5, 'revenue', v_group_rev, 'unit_price', 1199)
+        ),
         'breakdown', jsonb_build_object(
             'stag', jsonb_build_object('approved_bookings', v_stag_approved, 'revenue', v_stag_rev, 'unit_price', 299),
             'couple', jsonb_build_object('approved_bookings', v_couple_approved, 'revenue', v_couple_rev, 'unit_price', 499),
